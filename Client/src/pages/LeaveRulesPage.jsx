@@ -24,16 +24,26 @@ export default function LeaveRulesPage({ onBackToProfile }) {
             <span>Policy Guidelines</span>
           </div>
 
-          {onBackToProfile && (
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={onBackToProfile}
+              onClick={() => setActiveTab('overview')}
               className="text-xs font-semibold text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1 py-1 px-2.5 rounded-lg hover:bg-surface-container"
             >
-              <span className="material-symbols-outlined text-[16px]">arrow_back</span>
-              <span>Back to Profile</span>
+              <span className="material-symbols-outlined text-[16px]">dashboard</span>
+              <span>Dashboard</span>
             </button>
-          )}
+            {onBackToProfile && (
+              <button
+                type="button"
+                onClick={onBackToProfile}
+                className="text-xs font-semibold text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1 py-1 px-2.5 rounded-lg hover:bg-surface-container"
+              >
+                <span className="material-symbols-outlined text-[16px]">person</span>
+                <span>Profile</span>
+              </button>
+            )}
+          </div>
         </div>
 
         <h1 className="font-headline-lg text-2xl sm:text-3xl font-bold text-on-surface tracking-tight mt-1">
@@ -42,6 +52,21 @@ export default function LeaveRulesPage({ onBackToProfile }) {
         <p className="font-body-md text-xs sm:text-sm text-on-surface-variant">
           Official guide to company leave terms, Saturday & Sunday sandwich rules, and balance calculations.
         </p>
+
+        {/* First-time Registration Welcome Banner */}
+        {!user?.rulesAcknowledged && (
+          <div className="p-4 rounded-2xl bg-primary-fixed/30 border border-primary/25 flex items-start gap-3 shadow-xs mt-1">
+            <div className="w-9 h-9 rounded-xl bg-primary text-white flex items-center justify-center shrink-0 shadow-xs">
+              <span className="material-symbols-outlined text-[20px]">verified_user</span>
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-on-surface">Welcome! First-Time Policy Review</h3>
+              <p className="text-xs text-on-surface-variant mt-0.5 leading-relaxed">
+                As a new employee, please review the company leave policy and weekend sandwich guidelines below. Check the agreement box at the bottom and click continue to enter your dashboard.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* RULE 1: FRIDAY LEAVE (SATURDAY ATTENDANCE) */}

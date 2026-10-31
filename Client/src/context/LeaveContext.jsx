@@ -394,9 +394,9 @@ export function LeaveProvider({ children }) {
         localStorage.setItem('auth_logged_in', 'true');
         localStorage.setItem('auth_user', JSON.stringify(userData));
 
-        // Direct to dashboard overview
-        setActiveTab('overview');
-        showToast('Account Created', 'Welcome to Leave Manager!');
+        // Open policy page immediately when user creates account for the first time
+        setActiveTab('rules');
+        showToast('Account Created', 'Welcome to Leave Manager! Please review the policy guidelines.');
         return { success: true };
       }
       return { success: false, error: 'Could not create account' };

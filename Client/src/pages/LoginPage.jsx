@@ -10,6 +10,8 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -83,12 +85,13 @@ export default function LoginPage() {
             onClick={() => {
               setAuthMode('login');
               setError('');
+              setShowPassword(false);
+              setShowConfirmPassword(false);
             }}
-            className={`py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all ${
-              authMode === 'login'
+            className={`py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all ${authMode === 'login'
                 ? 'bg-surface-container-lowest text-primary shadow-xs'
                 : 'text-on-surface-variant hover:text-on-surface'
-            }`}
+              }`}
           >
             Sign In
           </button>
@@ -97,12 +100,13 @@ export default function LoginPage() {
             onClick={() => {
               setAuthMode('register');
               setError('');
+              setShowPassword(false);
+              setShowConfirmPassword(false);
             }}
-            className={`py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all ${
-              authMode === 'register'
+            className={`py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all ${authMode === 'register'
                 ? 'bg-surface-container-lowest text-primary shadow-xs'
                 : 'text-on-surface-variant hover:text-on-surface'
-            }`}
+              }`}
           >
             Create Account
           </button>
@@ -169,13 +173,24 @@ export default function LoginPage() {
                 <span className="material-symbols-outlined text-[18px]">lock</span>
               </div>
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                className="w-full h-11 pl-10 pr-4 bg-surface-container-low text-on-surface text-sm rounded-xl outline-none border border-transparent focus:border-primary transition-all"
+                className="w-full h-11 pl-10 pr-10 bg-surface-container-low text-on-surface text-sm rounded-xl outline-none border border-transparent focus:border-primary transition-all"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-on-surface-variant hover:text-primary transition-colors focus:outline-none"
+                title={showPassword ? 'Hide password' : 'Show password'}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                <span className="material-symbols-outlined text-[19px] select-none">
+                  {showPassword ? 'visibility_off' : 'visibility'}
+                </span>
+              </button>
             </div>
           </div>
 
@@ -190,13 +205,24 @@ export default function LoginPage() {
                   <span className="material-symbols-outlined text-[18px]">check_circle</span>
                 </div>
                 <input
-                  type="password"
+                  type={showConfirmPassword ? 'text' : 'password'}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Re-enter password"
                   required
-                  className="w-full h-11 pl-10 pr-4 bg-surface-container-low text-on-surface text-sm rounded-xl outline-none border border-transparent focus:border-primary transition-all"
+                  className="w-full h-11 pl-10 pr-10 bg-surface-container-low text-on-surface text-sm rounded-xl outline-none border border-transparent focus:border-primary transition-all"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((prev) => !prev)}
+                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-on-surface-variant hover:text-primary transition-colors focus:outline-none"
+                  title={showConfirmPassword ? 'Hide password' : 'Show password'}
+                  aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                >
+                  <span className="material-symbols-outlined text-[19px] select-none">
+                    {showConfirmPassword ? 'visibility_off' : 'visibility'}
+                  </span>
+                </button>
               </div>
             </div>
           )}
