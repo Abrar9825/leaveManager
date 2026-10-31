@@ -1,5 +1,4 @@
-const BASE_URL = 'http://127.0.0.1:5000/api';
-
+const BASE_URL = '/api';
 /**
  * Generic fetch wrapper with JSON handling and clean error formatting
  */
