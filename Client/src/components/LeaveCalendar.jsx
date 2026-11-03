@@ -3,7 +3,7 @@ import { useLeave } from '../context/LeaveContext';
 import LeaveDetailModal from './LeaveDetailModal';
 
 export default function LeaveCalendar() {
-  const { setActiveTab, leaveRequests, holidays } = useLeave();
+  const { setActiveTab, leaveRequests, holidays, attendanceRecords } = useLeave();
 
   // Dynamic calendar date state
   const [calendarDate, setCalendarDate] = useState(() => new Date());
@@ -85,6 +85,13 @@ export default function LeaveCalendar() {
     });
   };
 
+  // Check if a day has attendance recorded
+  const getAttendanceForDay = (day) => {
+    if (!attendanceRecords || !Array.isArray(attendanceRecords)) return null;
+    const targetDateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    return attendanceRecords.find((a) => a.date === targetDateStr);
+  };
+
   // Holidays in the current month for the preview card
   const monthHolidays = useMemo(() => {
     if (!holidays || !Array.isArray(holidays)) return [];
@@ -105,14 +112,18 @@ export default function LeaveCalendar() {
 
   const selectedLeaveInfo = getLeaveForDay(selectedDay);
   const selectedHolidayInfo = getHolidayForDay(selectedDay);
+  const selectedAttendanceInfo = getAttendanceForDay(selectedDay);
 
   return (
     <div className="w-full max-w-[760px] mx-auto flex flex-col gap-6 pb-12 animate-in fade-in duration-200">
       {/* Title Header */}
       <div className="flex flex-col gap-0.5 text-left">
         <h1 className="font-headline-lg text-2xl sm:text-3xl font-bold text-on-surface tracking-tight">
-          Leave Calendar
+          Monthly Calendar
         </h1>
+        <p className="text-xs text-on-surface-variant">
+          Track check-ins, late marks, leaves, and official company holidays.
+        </p>
       </div>
 
       {/* Month Navigation Pill Bar */}
@@ -182,6 +193,7 @@ export default function LeaveCalendar() {
           {daysArray.map((d) => {
             const leave = getLeaveForDay(d);
             const holiday = getHolidayForDay(d);
+            const attendance = getAttendanceForDay(d);
             const isToday = isCurrentMonth && d === new Date().getDate();
             const isSelected = d === selectedDay;
 
@@ -198,7 +210,11 @@ export default function LeaveCalendar() {
                   leave
                     ? 'bg-primary-fixed/30 text-primary font-bold hover:bg-primary-fixed/50'
                     : holiday
-                    ? 'bg-amber-500/10 text-amber-900 font-bold hover:bg-amber-500/20'
+                    ? 'bg-blue-500/10 text-blue-900 font-bold hover:bg-blue-500/20'
+                    : attendance?.isLate
+                    ? 'bg-rose-50 text-rose-700 font-semibold hover:bg-rose-100'
+                    : attendance
+                    ? 'bg-emerald-50 text-emerald-800 font-semibold hover:bg-emerald-100'
                     : isToday
                     ? 'bg-surface-container text-primary font-bold'
                     : 'text-on-surface hover:bg-surface-container-low'
@@ -206,10 +222,18 @@ export default function LeaveCalendar() {
               >
                 <span>{d}</span>
                 <div className="flex items-center gap-1 mt-0.5">
+                  {attendance && (
+                    <span
+                      title={`Checked in: ${attendance.punchTime} ${attendance.isLate ? '(Late)' : '(On Time)'}`}
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        attendance.isLate ? 'bg-rose-500' : 'bg-emerald-500'
+                      }`}
+                    ></span>
+                  )}
                   {holiday && (
                     <span
-                      title={`Govt Holiday: ${holiday.name}`}
-                      className="w-1.5 h-1.5 rounded-full bg-amber-600"
+                      title={`Holiday: ${holiday.name}`}
+                      className="w-1.5 h-1.5 rounded-full bg-blue-600"
                     ></span>
                   )}
                   {leave && (
@@ -227,18 +251,22 @@ export default function LeaveCalendar() {
         </div>
 
         {/* Legend */}
-        <div className="flex items-center justify-center gap-4 pt-3 border-t border-surface-container/60 text-[11px] text-on-surface-variant">
+        <div className="flex flex-wrap items-center justify-center gap-4 pt-3 border-t border-surface-container/60 text-[11px] text-on-surface-variant">
+          <span className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+            Check-In On Time
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+            Late Arrival (&gt;10:00)
+          </span>
           <span className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-primary"></span>
-            Booked Leave
+            Approved Leave
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-amber-600"></span>
-            Government Public Holiday
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-surface-container border border-surface-container-high"></span>
-            Today
+            <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+            Company Holiday
           </span>
         </div>
       </div>
@@ -259,90 +287,92 @@ export default function LeaveCalendar() {
               onClick={() => setModalItem(selectedLeaveInfo)}
               className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
             >
-              <span>View Details</span>
-              <span className="material-symbols-outlined text-[15px]">arrow_forward</span>
+              <span>View Leave Details</span>
+              <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
             </button>
           )}
         </div>
 
-        {/* Show Government Holiday if on this day */}
-        {selectedHolidayInfo && (
-          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <span className="material-symbols-outlined text-amber-800 text-[20px]">
-                account_balance
+        {/* Attendance info for selected day */}
+        {selectedAttendanceInfo && (
+          <div className="p-3 rounded-xl bg-surface-container-low/70 border border-surface-container flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span
+                className={`material-symbols-outlined text-[18px] ${
+                  selectedAttendanceInfo.isLate ? 'text-rose-600' : 'text-emerald-600'
+                }`}
+              >
+                {selectedAttendanceInfo.isLate ? 'schedule' : 'check_circle'}
               </span>
               <div>
-                <span className="text-xs sm:text-sm font-bold text-amber-950 block">
-                  {selectedHolidayInfo.name}
+                <span className="text-xs font-bold text-on-surface block">
+                  Punch-in Time: {selectedAttendanceInfo.punchTime}
                 </span>
-                <span className="text-[11px] text-amber-800 font-medium">
-                  {selectedHolidayInfo.type || 'Government Gazetted Holiday'}
+                <span className="text-[11px] text-on-surface-variant">
+                  {selectedAttendanceInfo.method === 'manual' ? 'Manual Entry' : 'Long-Press Check-In'}
                 </span>
               </div>
             </div>
 
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-900 border border-amber-500/30 shrink-0">
-              Govt Holiday
+            <span
+              className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                selectedAttendanceInfo.isLate
+                  ? 'bg-rose-100 text-rose-700'
+                  : 'bg-emerald-100 text-emerald-700'
+              }`}
+            >
+              {selectedAttendanceInfo.isLate
+                ? `Late (+${selectedAttendanceInfo.minutesLate}m)`
+                : 'On Time'}
             </span>
           </div>
         )}
 
-        {/* Show Booked Leave if on this day */}
+        {/* Holiday info for selected day */}
+        {selectedHolidayInfo && (
+          <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-blue-600 text-[18px]">
+                celebration
+              </span>
+              <div>
+                <span className="text-xs font-bold text-blue-900 block">
+                  {selectedHolidayInfo.name}
+                </span>
+                <span className="text-[11px] text-blue-700">{selectedHolidayInfo.type}</span>
+              </div>
+            </div>
+            <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px] font-bold uppercase">
+              Official Holiday
+            </span>
+          </div>
+        )}
+
+        {/* Leave info for selected day */}
         {selectedLeaveInfo && (
-          <div className="flex items-center justify-between py-1.5">
-            <div className="space-y-0.5">
-              <span className="text-sm font-bold text-on-surface block">
+          <div className="p-3 rounded-xl bg-primary-fixed/20 border border-primary-fixed/40 flex items-center justify-between">
+            <div>
+              <span className="text-xs font-bold text-primary block">
                 {selectedLeaveInfo.reason}
               </span>
-              <span className="text-xs text-on-surface-variant">
+              <span className="text-[11px] text-on-surface-variant">
                 {selectedLeaveInfo.dayLabel} • {selectedLeaveInfo.status}
               </span>
             </div>
-
-            <span className="px-3 py-1 rounded-full bg-primary-fixed text-primary text-xs font-bold">
-              Booked
+            <span className="px-2 py-0.5 rounded-full bg-primary text-white text-[10px] font-bold uppercase">
+              {selectedLeaveInfo.days} Day(s)
             </span>
           </div>
         )}
 
-        {/* If neither leave nor holiday */}
-        {!selectedLeaveInfo && !selectedHolidayInfo && (
-          <div className="flex items-center justify-between py-1 text-xs text-on-surface-variant">
-            <span>No leaves or government holidays on this date.</span>
-            <button
-              type="button"
-              onClick={() => setActiveTab('add-leave')}
-              className="px-3 py-1.5 rounded-xl bg-surface-container-low hover:bg-surface-container text-primary font-semibold transition-colors flex items-center gap-1"
-            >
-              <span className="material-symbols-outlined text-[15px]">add</span>
-              <span>Apply Leave</span>
-            </button>
-          </div>
-        )}
-
-        {/* Upcoming Month Holidays List */}
-        {monthHolidays.length > 0 && (
-          <div className="mt-2 pt-3 border-t border-surface-container space-y-2">
-            <span className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider block">
-              Government Holidays in {calendarDate.toLocaleDateString('en-US', { month: 'long' })}:
-            </span>
-            <div className="flex flex-wrap gap-1.5">
-              {monthHolidays.map((h, i) => (
-                <span
-                  key={i}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container-low border border-surface-container text-xs text-on-surface"
-                >
-                  <span className="font-bold text-amber-800">{new Date(h.date).getDate()}</span>
-                  <span>{h.name}</span>
-                </span>
-              ))}
-            </div>
+        {!selectedAttendanceInfo && !selectedHolidayInfo && !selectedLeaveInfo && (
+          <div className="py-4 text-center text-xs text-on-surface-variant">
+            No events or check-ins recorded on this day.
           </div>
         )}
       </div>
 
-      {/* Detail Modal */}
+      {/* Modal for Leave Details */}
       {modalItem && (
         <LeaveDetailModal item={modalItem} onClose={() => setModalItem(null)} />
       )}

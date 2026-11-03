@@ -39,6 +39,11 @@ const balanceSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    monthlyAdjustments: {
+      type: Map,
+      of: Number,
+      default: {},
+    },
     monthlyBreakdown: [monthlyBreakdownSchema],
   },
   {
@@ -54,4 +59,3 @@ const balanceSchema = new mongoose.Schema(
 );
 
 export const Balance = mongoose.model('Balance', balanceSchema);
-

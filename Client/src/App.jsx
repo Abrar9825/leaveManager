@@ -5,9 +5,11 @@ import Footer from './components/Footer';
 import MobileBottomNav from './components/MobileBottomNav';
 import Toast from './components/Toast';
 import OverviewPage from './pages/OverviewPage';
+import AttendancePage from './components/AttendancePage';
 import AddLeaveForm from './components/AddLeaveForm';
-import LeaveCalendar from './components/LeaveCalendar';
 import LeaveHistory from './components/LeaveHistory';
+import DailyWorkPage from './components/DailyWorkPage';
+import AddTaskView from './components/AddTaskView';
 import ProfilePage from './pages/ProfilePage';
 import LoginPage from './pages/LoginPage';
 import LeaveRulesPage from './pages/LeaveRulesPage';
@@ -24,11 +26,13 @@ function AppContent() {
     <div className="min-h-screen flex flex-col bg-surface text-on-surface antialiased font-sans">
       <Header />
 
-      <main className="flex-1 w-full flex flex-col items-center justify-start py-6 sm:py-8 md:py-10 px-4 sm:px-6 lg:px-10">
-        <div className="w-full max-w-[1440px] flex justify-center">
+      <main className="flex-1 w-full flex flex-col items-center justify-start py-6 sm:py-8 px-4 sm:px-6">
+        <div className="w-full max-w-[820px] flex justify-center">
           {activeTab === 'overview' && <OverviewPage />}
           {activeTab === 'add-leave' && <AddLeaveForm />}
-          {activeTab === 'calendar' && <LeaveCalendar />}
+          {activeTab === 'daily-work' && <DailyWorkPage />}
+          {activeTab === 'add-task' && <AddTaskView />}
+          {activeTab === 'attendance' && <AttendancePage />}
           {activeTab === 'history' && <LeaveHistory />}
           {activeTab === 'profile' && <ProfilePage />}
           {activeTab === 'rules' && (
@@ -37,10 +41,10 @@ function AppContent() {
         </div>
       </main>
 
-      {/* Mobile Bottom Navigation (only when not in initial rules onboarding) */}
+      {/* Mobile Bottom Navigation */}
       {activeTab !== 'rules' && <MobileBottomNav />}
 
-      {/* Persistent Footer */}
+      {/* Footer */}
       <Footer />
 
       {/* Dynamic Toast Feedback */}

@@ -1,13 +1,19 @@
 import React, { useState } from 'react';
-import { useLeave } from '../context/LeaveContext';
+import { useLeave, MONTH_NAMES } from '../context/LeaveContext';
 
 export default function ProfilePage() {
-  const { user, updatePassword, updateUserProfile, logout, setActiveTab } = useLeave();
+  const { user, updatePassword, updateUserProfile, logout, setActiveTab, refreshData } = useLeave();
 
-  // Profile Edit State (Only Full Name is editable; email is primary identifier)
+  // Profile Edit State
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileName, setProfileName] = useState(user?.name || '');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  // Joining Month/Year State
+  const [joinMonth, setJoinMonth] = useState(user?.joinMonth || 10);
+  const [joinYear, setJoinYear] = useState(user?.joinYear || 2026);
+  const [isSavingJoinDate, setIsSavingJoinDate] = useState(false);
+  const [joinDateSavedMsg, setJoinDateSavedMsg] = useState(false);
 
   // Password Change State
   const [currentPassword, setCurrentPassword] = useState('');
@@ -25,6 +31,26 @@ export default function ProfilePage() {
     });
     setIsSavingProfile(false);
     setIsEditingProfile(false);
+  };
+
+  const handleJoinDateSave = async (e) => {
+    e.preventDefault();
+    setIsSavingJoinDate(true);
+    setJoinDateSavedMsg(false);
+
+    const res = await updateUserProfile({
+      joinMonth: Number(joinMonth),
+      joinYear: Number(joinYear),
+    });
+
+    setIsSavingJoinDate(false);
+    if (res?.success) {
+      setJoinDateSavedMsg(true);
+      if (typeof refreshData === 'function') {
+        await refreshData();
+      }
+      setTimeout(() => setJoinDateSavedMsg(false), 3000);
+    }
   };
 
   const handlePasswordSubmit = async (e) => {
@@ -100,7 +126,7 @@ export default function ProfilePage() {
 
       {/* Profile Details Card */}
       <div className="w-full bg-surface-container-lowest rounded-[22px] p-5 sm:p-7 shadow-sm border border-surface-container/80 flex flex-col gap-5">
-        {/* User Info Header: Fully responsive, zero overlap */}
+        {/* User Info Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 border-b border-surface-container gap-4">
           <div className="flex items-center gap-3.5 min-w-0 flex-1">
             <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-primary-fixed text-primary flex items-center justify-center border border-primary/20 shadow-xs shrink-0">
@@ -187,7 +213,7 @@ export default function ProfilePage() {
             </div>
           </form>
         ) : (
-          /* View Profile Info: ONLY Name and Email */
+          /* View Profile Info */
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
               <label className="block text-xs font-semibold text-on-surface-variant mb-1.5">
@@ -218,6 +244,97 @@ export default function ProfilePage() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Employment & Joining Date Card */}
+      <div className="w-full bg-surface-container-lowest rounded-[22px] p-5 sm:p-7 shadow-sm border border-surface-container/80 flex flex-col gap-4">
+        <div className="flex items-center justify-between pb-3 border-b border-surface-container">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-primary-fixed text-primary flex items-center justify-center">
+              <span className="material-symbols-outlined text-[20px]">calendar_today</span>
+            </div>
+            <div>
+              <h2 className="font-headline-sm text-base font-bold text-on-surface">
+                Employment & Joining Date
+              </h2>
+              <p className="font-body-sm text-xs text-on-surface-variant">
+                Monthly +2.0d accrual starts strictly from your joining month.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <form onSubmit={handleJoinDateSave} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <div>
+              <label className="block text-xs font-semibold text-on-surface-variant mb-1.5">
+                Joining Month
+              </label>
+              <select
+                value={joinMonth}
+                onChange={(e) => setJoinMonth(Number(e.target.value))}
+                className="w-full h-11 px-3 bg-surface-container-low text-on-surface text-sm font-semibold rounded-xl outline-none border border-surface-container focus:border-primary"
+              >
+                {MONTH_NAMES.map((m, idx) => (
+                  <option key={m} value={idx + 1}>
+                    {m} (Month {idx + 1})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-on-surface-variant mb-1.5">
+                Joining Year
+              </label>
+              <input
+                type="number"
+                min="2020"
+                max="2035"
+                value={joinYear}
+                onChange={(e) => setJoinYear(Number(e.target.value))}
+                required
+                className="w-full h-11 px-3.5 bg-surface-container-low text-on-surface text-sm font-semibold rounded-xl outline-none border border-surface-container focus:border-primary"
+              />
+            </div>
+          </div>
+
+          <div className="p-3 rounded-xl bg-surface-container-low/70 border border-surface-container text-xs flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2 text-on-surface-variant">
+              <span className="material-symbols-outlined text-[16px] text-primary">info</span>
+              <span>
+                Accrual begins: <strong className="text-on-surface">{MONTH_NAMES[(user?.joinMonth || 10) - 1]} {user?.joinYear || 2026}</strong>
+              </span>
+            </div>
+
+            {joinDateSavedMsg && (
+              <span className="text-emerald-600 font-bold flex items-center gap-1 text-xs animate-in fade-in">
+                <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                Saved & recalculated!
+              </span>
+            )}
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              disabled={isSavingJoinDate}
+              className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-primary hover:bg-[#4834c9] shadow-primary-btn transition-all disabled:opacity-60 flex items-center gap-1.5"
+            >
+              {isSavingJoinDate ? (
+                <>
+                  <span className="material-symbols-outlined text-[15px] animate-spin">refresh</span>
+                  <span>Updating...</span>
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-[15px]">save</span>
+                  <span>Update Joining Date</span>
+                </>
+              )}
+            </button>
+          </div>
+        </form>
       </div>
 
       {/* Change Password Card */}

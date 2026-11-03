@@ -41,10 +41,8 @@ export const register = async (req, res) => {
       rulesAcknowledged: false,
     });
 
-    // Prorated annual quota based on join month
     const initialQuota = calculateProratedQuota(joinYear, joinMonth, joinYear);
 
-    // Initialize clean balance for this year
     let balance = await Balance.findOne({ year: joinYear });
     if (!balance) {
       balance = await Balance.create({
@@ -98,10 +96,9 @@ export const login = async (req, res) => {
     const now = new Date();
     const currentYear = now.getFullYear();
 
-    // Ensure current year balance is initialized with prorated quota
     let balance = await Balance.findOne({ year: currentYear });
     if (!balance) {
-      const quota = calculateProratedQuota(user.joinYear || currentYear, user.joinMonth || 1, currentYear);
+      const quota = calculateProratedQuota(user.joinYear || currentYear, user.joinMonth || 10, currentYear);
       balance = await Balance.create({
         year: currentYear,
         totalQuota: quota,
@@ -117,8 +114,8 @@ export const login = async (req, res) => {
         id: user._id,
         email: user.email,
         name: user.name,
-        joinMonth: user.joinMonth,
-        joinYear: user.joinYear,
+        joinMonth: user.joinMonth || 10,
+        joinYear: user.joinYear || 2026,
         rulesAcknowledged: !!user.rulesAcknowledged,
       },
     });
@@ -173,10 +170,10 @@ export const getProfile = async (req, res) => {
   }
 };
 
-// PUT /api/auth/profile - Update user name dynamically
+// PUT /api/auth/profile - Update user name and joining date
 export const updateProfile = async (req, res) => {
   try {
-    const { email, name } = req.body;
+    const { email, name, joinMonth, joinYear } = req.body;
     if (!email) {
       return res.status(400).json({ success: false, error: 'Email is required to identify account' });
     }
@@ -188,6 +185,12 @@ export const updateProfile = async (req, res) => {
 
     if (name !== undefined && name.trim()) {
       user.name = name.trim();
+    }
+    if (joinMonth !== undefined && Number(joinMonth) >= 1 && Number(joinMonth) <= 12) {
+      user.joinMonth = Number(joinMonth);
+    }
+    if (joinYear !== undefined && Number(joinYear) > 2000) {
+      user.joinYear = Number(joinYear);
     }
 
     await user.save();

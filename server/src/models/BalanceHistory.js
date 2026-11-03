@@ -12,6 +12,14 @@ const balanceHistorySchema = new mongoose.Schema(
       required: true,
       default: 2026,
     },
+    month: {
+      type: Number,
+      required: false,
+    },
+    monthName: {
+      type: String,
+      required: false,
+    },
     oldBalance: {
       type: Number,
       required: true,
@@ -52,4 +60,3 @@ const balanceHistorySchema = new mongoose.Schema(
 );
 
 export const BalanceHistory = mongoose.model('BalanceHistory', balanceHistorySchema);
-

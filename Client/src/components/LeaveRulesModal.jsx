@@ -59,6 +59,16 @@ export default function LeaveRulesModal({ isOpen, onClose, isMandatory = false }
             </p>
           </div>
 
+          <div className="p-4 sm:p-5 rounded-2xl bg-surface-container-low border border-surface-container space-y-2">
+            <div className="flex items-center gap-2.5 text-primary font-bold text-sm sm:text-base">
+              <span aria-hidden="true" className="material-symbols-outlined text-[20px]">schedule</span>
+              <h4>Late Attendance: 3 Lates = Half-Day Deduction</h4>
+            </div>
+            <p className="text-xs text-on-surface-variant leading-relaxed">
+              Arrival after 10:00 AM counts as late. Every 3 late arrivals in a month deduct <strong>0.5 day (half day)</strong> from your leave balance. The 3rd late deducts 0.5 day; the 6th late deducts another 0.5 day.
+            </p>
+          </div>
+
           {/* RULE 1: AUTO RECALCULATION ON EDIT & DELETE */}
           <div className="p-4 sm:p-5 rounded-2xl bg-surface-container-low border border-surface-container space-y-3">
             <div className="flex items-center gap-2.5 text-primary font-bold text-sm sm:text-base">

@@ -3,75 +3,25 @@ import api from '../services/api';
 
 const LeaveContext = createContext(null);
 
-// Dynamic Monthly Breakdown Generator based on real year, actual leaves, and user's join month
-export const generateDynamicMonthlyBreakdown = (year, leaves = [], joinYear = 2026, joinMonth = 10) => {
-  const now = new Date();
-  const currYear = now.getFullYear();
-  const currMonth = now.getMonth(); // 0 to 11
+export const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
 
-  const monthNames = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ];
-
-  let cumulativeBalance = 0;
-
-  return monthNames.map((name, index) => {
-    const monthNum = index + 1; // 1 to 12
-    const isCurrent = year === currYear && index === currMonth;
-
-    // Check if user was already in company
-    const isPreJoining = year < joinYear || (year === joinYear && monthNum < joinMonth);
-    const isJoiningMonth = year === joinYear && monthNum === joinMonth;
-
-    // Credit rules:
-    // If pre-joining: 0 credit
-    // If past or current month (from joining month onwards): 2.0 credits
-    const isPastOrCurrent = year < currYear || (year === currYear && index <= currMonth);
-    const monthlyCredit = isPreJoining ? 0.0 : isPastOrCurrent ? 2.0 : 0.0;
-
-    // Filter actual leaves in this month from database
-    const usedInMonth = leaves
-      .filter((l) => {
-        if (!l.date) return false;
-        const d = new Date(l.date + 'T00:00:00');
-        return d.getFullYear() === year && d.getMonth() === index;
-      })
-      .reduce((sum, l) => sum + (Number(l.days) || 0), 0);
-
-    const opening = isPreJoining ? 0 : cumulativeBalance;
-    const days = isPreJoining ? 0 : (isPastOrCurrent ? opening + monthlyCredit - usedInMonth : opening);
-    
-    if (!isPreJoining && isPastOrCurrent) {
-      cumulativeBalance = days;
-    }
-
-    let tag = undefined;
-    if (isPreJoining) {
-      tag = 'Pre-joining';
-    } else if (isJoiningMonth) {
-      tag = 'Joined';
-    }
-
-    return {
-      month: `${name} ${year}`,
-      current: isCurrent,
-      days: parseFloat(days.toFixed(1)),
-      opening: parseFloat(opening.toFixed(1)),
-      credit: monthlyCredit,
-      used: parseFloat(usedInMonth.toFixed(1)),
-      status: days < 0 ? 'deficit' : 'normal',
-      tag,
-      isPreJoining,
-    };
-  });
+export const formatDateKey = (d = new Date()) => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
 export function LeaveProvider({ children }) {
-  // Dynamically set to current calendar year
-  const [currentYear, setCurrentYear] = useState(() => new Date().getFullYear());
+  const today = new Date();
+  const [selectedYear, setSelectedYear] = useState(() => today.getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(() => today.getMonth() + 1); // 1-12
+
   const [balances, setBalances] = useState({});
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'add-leave' | 'calendar' | 'history' | 'profile' | 'rules'
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'add-leave' | 'attendance' | 'history' | 'daily-work' | 'add-task' | 'profile' | 'rules'
   const [leaveRequests, setLeaveRequests] = useState([]);
   const [balanceHistory, setBalanceHistory] = useState([]);
   const [holidays, setHolidays] = useState([]);
@@ -79,7 +29,22 @@ export function LeaveProvider({ children }) {
   const [isSyncing, setIsSyncing] = useState(false);
   const [toast, setToast] = useState({ open: false, title: '', message: '', type: 'success' });
 
-  // Auth state: Initially unauthenticated
+  // Attendance records (late records)
+  const [attendanceRecords, setAttendanceRecords] = useState([]);
+  const [todayAttendance, setTodayAttendance] = useState(null);
+
+  // Daily Work & Tasks State
+  const [tasks, setTasks] = useState([]);
+  const [taskDate, setTaskDate] = useState(() => formatDateKey());
+  const [taskFromDate, setTaskFromDate] = useState(() => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}-01`;
+  });
+  const [taskToDate, setTaskToDate] = useState(() => formatDateKey());
+
+  // Auth state
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     return localStorage.getItem('auth_logged_in') === 'true';
   });
@@ -93,67 +58,363 @@ export function LeaveProvider({ children }) {
     }
   });
 
-  const userJoinYear = user?.joinYear || new Date().getFullYear();
-  const userJoinMonth = user?.joinMonth || (new Date().getMonth() + 1);
-
-  // Dynamic monthly breakdown calculated from real leaves and user's join month
-  const monthlyBreakdown = useMemo(() => {
-    return generateDynamicMonthlyBreakdown(currentYear, leaveRequests, userJoinYear, userJoinMonth);
-  }, [currentYear, leaveRequests, userJoinYear, userJoinMonth]);
-
-  // Default prorated annual quota based on user's join month
-  const defaultAnnualQuota = useMemo(() => {
-    if (currentYear < userJoinYear) return 0.0;
-    if (currentYear === userJoinYear) {
-      const remainingMonths = Math.max(1, 12 - userJoinMonth + 1);
-      return parseFloat((remainingMonths * 2.0).toFixed(1));
-    }
-    return 24.0;
-  }, [currentYear, userJoinYear, userJoinMonth]);
-
-  const availableBalance = balances[currentYear] ?? defaultAnnualQuota;
+  // User join month and year (defaults to October 2026 if not specified)
+  const userJoinYear = user?.joinYear || 2026;
+  const userJoinMonth = user?.joinMonth || 10;
 
   const showToast = (title, message, type = 'success') => {
     setToast({ open: true, title, message, type });
     setTimeout(() => {
       setToast((prev) => ({ ...prev, open: false }));
-    }, 4000);
+    }, 3500);
   };
 
   const closeToast = () => {
     setToast((prev) => ({ ...prev, open: false }));
   };
 
-  // Fetch initial data from MongoDB Backend
+  // Month navigation helpers
+  const prevMonth = useCallback(() => {
+    setSelectedMonth((prevM) => {
+      if (prevM === 1) {
+        setSelectedYear((prevY) => prevY - 1);
+        return 12;
+      }
+      return prevM - 1;
+    });
+  }, []);
+
+  const nextMonth = useCallback(() => {
+    setSelectedMonth((prevM) => {
+      if (prevM === 12) {
+        setSelectedYear((prevY) => prevY + 1);
+        return 1;
+      }
+      return prevM + 1;
+    });
+  }, []);
+
+  const jumpToCurrentMonth = useCallback(() => {
+    const now = new Date();
+    setSelectedYear(now.getFullYear());
+    setSelectedMonth(now.getMonth() + 1);
+  }, []);
+
+  const handleYearChange = (delta) => {
+    setSelectedYear((prev) => prev + delta);
+  };
+
+  // Fetch Attendance for selected year (all late records)
+  const fetchAttendance = useCallback(async (year) => {
+    try {
+      const res = await api.getAttendance(year || selectedYear);
+      if (res?.data) {
+        setAttendanceRecords(res.data.filter((r) => r.isLate !== false));
+      }
+    } catch (err) {
+      console.warn('[LeaveProvider] Failed to fetch attendance:', err.message);
+    }
+  }, [selectedYear]);
+
+  // Fetch Today's Attendance check
+  const fetchTodayAttendance = useCallback(async () => {
+    try {
+      const res = await api.getTodayAttendance();
+      if (res?.data && res.data.isLate) {
+        setTodayAttendance(res.data);
+      } else {
+        setTodayAttendance(null);
+      }
+    } catch (err) {
+      console.warn('[LeaveProvider] Failed to fetch today attendance:', err.message);
+    }
+  }, []);
+
+  // Fetch Balance History
+  const fetchBalanceHistory = useCallback(async (year) => {
+    try {
+      const res = await api.getBalanceHistory(year || selectedYear);
+      if (res?.data) {
+        setBalanceHistory(res.data);
+      }
+      return res?.data || [];
+    } catch (err) {
+      console.warn('[LeaveProvider] Failed to fetch balance history:', err.message);
+      return [];
+    }
+  }, [selectedYear]);
+
+  // Punch in / Add late entry (1 entry per day rule)
+  const punchIn = async ({ time, method = 'manual', notes = '', date } = {}) => {
+    setIsSyncing(true);
+    try {
+      const res = await api.punchIn({
+        time,
+        method,
+        notes,
+        date,
+      });
+
+      if (res?.success) {
+        await fetchAttendance(selectedYear);
+        await fetchTodayAttendance();
+
+        if (res.onTime) {
+          showToast('On Time! 🎯', res.message, 'success');
+          return { success: true, onTime: true };
+        }
+
+        const item = res.data;
+        const currentMonthLateCount = attendanceRecords.filter((a) => {
+          const [y, m] = (a.date || '').split('-');
+          return parseInt(y, 10) === selectedYear && parseInt(m, 10) === selectedMonth;
+        }).length + 1;
+
+        const isThird = currentMonthLateCount % 3 === 0;
+
+        showToast(
+          isThird ? '3rd Late — 0.5 Day Deducted' : 'Late Entry Added',
+          `Arrival logged at ${item.punchTime} on ${item.date}. ${
+            isThird
+              ? 'Penalty applied! 0.5 Day deducted from balance.'
+              : `Late count this month: ${currentMonthLateCount}.`
+          }`,
+          isThird ? 'error' : 'success'
+        );
+        return { success: true, data: item };
+      }
+      return { success: false, error: 'Could not record late entry' };
+    } catch (error) {
+      showToast('Error', error.message || 'Unable to add late entry', 'error');
+      return { success: false, error: error.message };
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // Edit attendance record
+  const updateAttendanceRecord = async (id, { date, time, notes }) => {
+    setIsSyncing(true);
+    try {
+      const res = await api.updateAttendance(id, { date, time, notes });
+      if (res?.success) {
+        await fetchAttendance(selectedYear);
+        await fetchTodayAttendance();
+
+        if (res.removed) {
+          showToast(
+            'Time On-Time (≤ 10:00 AM)',
+            'Arrival is before 10:00 AM. Removed from late log & balance restored!',
+            'success'
+          );
+        } else {
+          showToast('Updated', 'Late entry updated & balance recalculated.', 'success');
+        }
+        return { success: true };
+      }
+      return { success: false };
+    } catch (err) {
+      showToast('Update Failed', err.message || 'Could not update entry', 'error');
+      return { success: false, error: err.message };
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // Delete attendance entry
+  const deleteAttendanceRecord = async (id) => {
+    setIsSyncing(true);
+    try {
+      await api.deleteAttendance(id);
+      await fetchAttendance(selectedYear);
+      await fetchTodayAttendance();
+      showToast('Deleted', 'Late entry removed & balance recalculated.');
+      return true;
+    } catch (err) {
+      showToast('Delete Failed', err.message, 'error');
+      return false;
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // Reset / Calibrate balance via Long Press
+  const resetBalance = async (year, newBalance, reason, month) => {
+    setIsSyncing(true);
+    try {
+      const targetYear = year || selectedYear;
+      const targetMonth = month || selectedMonth;
+
+      const res = await api.adjustBalance({
+        year: targetYear,
+        month: targetMonth,
+        newBalance,
+        reason: reason || `Manual calibration for ${MONTH_NAMES[targetMonth - 1]} ${targetYear}`,
+        changedBy: user?.name || 'User',
+      });
+
+      const updatedVal = res.data.newBalance;
+
+      // Update both yearly and monthly calibrated keys
+      setBalances((prev) => ({
+        ...prev,
+        [targetYear]: updatedVal,
+        [`${targetYear}_${targetMonth}`]: updatedVal,
+      }));
+
+      // Immediately refresh audit trail
+      await fetchBalanceHistory(targetYear);
+
+      showToast(
+        'Balance Calibrated',
+        `Adjusted balance for ${MONTH_NAMES[targetMonth - 1]} to ${updatedVal.toFixed(1)} days. Recorded in Audit Trail.`
+      );
+      return true;
+    } catch (error) {
+      showToast('Reset Failed', error.message || 'Could not reset balance', 'error');
+      return false;
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // DAILY WORK & TASKS ENGINE
+  // Fetch tasks for given date range (fromDate -> toDate) or specific query
+  const fetchTasks = useCallback(async (filterObj) => {
+    try {
+      const q = filterObj || { fromDate: taskFromDate, toDate: taskToDate };
+      const res = await api.getTasks(q);
+      if (res?.data) {
+        setTasks(res.data);
+      }
+      return res?.data || [];
+    } catch (err) {
+      console.warn('[LeaveProvider] Failed to fetch tasks:', err.message);
+      return [];
+    }
+  }, [taskFromDate, taskToDate]);
+
+  // Add new daily task (auto-sequential srNo handled by server)
+  const addTask = async ({ date, branch = '', description, status = 'in_progress' } = {}) => {
+    setIsSyncing(true);
+    try {
+      const targetDate = date || taskDate;
+      const res = await api.createTask({
+        date: targetDate,
+        branch,
+        description,
+        status,
+        userId: user?.id || user?._id,
+      });
+
+      if (res?.success) {
+        const newTask = res.data;
+        await fetchTasks({ fromDate: taskFromDate, toDate: taskToDate });
+        showToast(
+          'Task Added 🎯',
+          `Task recorded (${newTask.status === 'completed' ? 'Completed' : 'In Progress'}).`,
+          'success'
+        );
+        return { success: true, data: newTask };
+      }
+      return { success: false, error: 'Could not create task' };
+    } catch (err) {
+      showToast('Task Error', err.message || 'Could not add task', 'error');
+      return { success: false, error: err.message };
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // Quick 1-click status toggle between 'in_progress' and 'completed'
+  const toggleTask = async (id) => {
+    try {
+      const res = await api.toggleTaskStatus(id);
+      if (res?.success) {
+        setTasks((prev) =>
+          prev.map((t) => ((t.id || t._id) === id ? res.data : t))
+        );
+        const st = res.data.status === 'completed' ? 'Completed' : 'In Progress';
+        showToast('Status Updated', `Task #${res.data.srNo} is now ${st}.`, 'success');
+        return true;
+      }
+      return false;
+    } catch (err) {
+      showToast('Toggle Failed', err.message, 'error');
+      return false;
+    }
+  };
+
+  // Update task details
+  const updateTaskItem = async (id, updateData) => {
+    setIsSyncing(true);
+    try {
+      const res = await api.updateTask(id, updateData);
+      if (res?.success) {
+        setTasks((prev) =>
+          prev.map((t) => ((t.id || t._id) === id ? res.data : t))
+        );
+        showToast('Task Updated', 'Changes saved successfully.');
+        return true;
+      }
+      return false;
+    } catch (err) {
+      showToast('Update Failed', err.message, 'error');
+      return false;
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // Delete task & automatically re-index srNo
+  const deleteTaskItem = async (id) => {
+    setIsSyncing(true);
+    try {
+      const res = await api.deleteTask(id);
+      if (res?.success) {
+        await fetchTasks({ fromDate: taskFromDate, toDate: taskToDate });
+        showToast('Task Deleted', 'Removed from daily work log.');
+        return true;
+      }
+      return false;
+    } catch (err) {
+      showToast('Delete Failed', err.message, 'error');
+      return false;
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // Fetch initial data
   const loadInitialData = useCallback(async () => {
     if (!isAuthenticated) return;
     setIsLoading(true);
     try {
-      // 1. Fetch Balances
-      const balanceRes = await api.getBalances();
+      const balanceRes = await api.getBalances().catch(() => null);
       if (balanceRes?.yearlyMap) {
-        setBalances((prev) => ({ ...prev, ...balanceRes.yearlyMap }));
+        setBalances((prev) => ({
+          ...prev,
+          ...balanceRes.yearlyMap,
+          ...(balanceRes.monthlyMap || {}),
+        }));
       }
 
-      // 2. Fetch Leaves
-      const leavesRes = await api.getLeaves(currentYear);
+      const leavesRes = await api.getLeaves(selectedYear).catch(() => null);
       if (leavesRes?.data) {
         setLeaveRequests(leavesRes.data);
       }
 
-      // 3. Fetch Balance Tracking History
-      const historyRes = await api.getBalanceHistory(currentYear);
-      if (historyRes?.data) {
-        setBalanceHistory(historyRes.data);
-      }
+      await fetchBalanceHistory(selectedYear);
 
-      // 4. Fetch Official Public Holidays
-      const holidayRes = await api.getHolidays(currentYear).catch(() => null);
+      const holidayRes = await api.getHolidays(selectedYear).catch(() => null);
       if (holidayRes?.data) {
         setHolidays(holidayRes.data);
       }
 
-      // 5. Fetch Profile (only for authenticated user)
+      await fetchAttendance(selectedYear);
+      await fetchTodayAttendance();
+      await fetchTasks({ fromDate: taskFromDate, toDate: taskToDate });
+
       if (user?.email) {
         const profileRes = await api.getProfile(user.email).catch(() => null);
         if (profileRes?.data) {
@@ -165,11 +426,11 @@ export function LeaveProvider({ children }) {
         }
       }
     } catch (error) {
-      console.warn('[LeaveProvider] Failed to load data from backend:', error.message);
+      console.warn('[LeaveProvider] Failed to load initial data:', error.message);
     } finally {
       setIsLoading(false);
     }
-  }, [currentYear, isAuthenticated]);
+  }, [selectedYear, isAuthenticated, fetchAttendance, fetchTodayAttendance, fetchBalanceHistory, fetchTasks, taskFromDate, taskToDate]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -177,25 +438,172 @@ export function LeaveProvider({ children }) {
     }
   }, [isAuthenticated, loadInitialData]);
 
-  // Refresh balance history
-  const fetchBalanceHistory = async (year) => {
-    try {
-      const res = await api.getBalanceHistory(year || currentYear);
-      if (res?.data) {
-        setBalanceHistory(res.data);
-      }
-      return res?.data || [];
-    } catch (err) {
-      console.error('Failed to fetch balance history:', err);
-      return [];
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchAttendance(selectedYear);
     }
-  };
+  }, [selectedYear, isAuthenticated, fetchAttendance]);
 
-  const handleYearChange = (delta) => {
-    setCurrentYear((prev) => prev + delta);
-  };
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchTasks({ fromDate: taskFromDate, toDate: taskToDate });
+    }
+  }, [taskFromDate, taskToDate, isAuthenticated, fetchTasks]);
 
-  // ADD LEAVE (Dynamic, auto-recalculates balance)
+  // MONTHLY CARRY-FORWARD & JOINING-MONTH ENGINE
+  // Accurately credits 2.0 only from userJoinMonth onwards!
+  const monthlyBreakdown = useMemo(() => {
+    let rollingBalance = 0.0;
+
+    return MONTH_NAMES.map((name, index) => {
+      const monthNum = index + 1;
+      const isCurrent =
+        today.getFullYear() === selectedYear && today.getMonth() + 1 === monthNum;
+
+      // Check pre-joining: Before user's joining month, quota is 0!
+      const isPreJoining =
+        selectedYear < userJoinYear ||
+        (selectedYear === userJoinYear && monthNum < userJoinMonth);
+
+      const isJoiningMonth =
+        selectedYear === userJoinYear && monthNum === userJoinMonth;
+
+      // Leaves in this month
+      const monthLeaves = leaveRequests.filter((l) => {
+        if (!l.date) return false;
+        const [y, m] = l.date.split('-');
+        return parseInt(y, 10) === selectedYear && parseInt(m, 10) === monthNum;
+      });
+      const leavesTaken = monthLeaves.reduce((sum, l) => sum + (Number(l.days) || 0), 0);
+
+      // Late records in this month
+      const monthLates = attendanceRecords.filter((a) => {
+        if (a.month && a.year) {
+          return a.year === selectedYear && a.month === monthNum && a.isLate !== false;
+        }
+        if (a.date) {
+          const [y, m] = a.date.split('-');
+          return parseInt(y, 10) === selectedYear && parseInt(m, 10) === monthNum && a.isLate !== false;
+        }
+        return false;
+      });
+
+      const lateCount = monthLates.length;
+      const lateDeductions = Math.floor(lateCount / 3) * 0.5;
+
+      const opening = isPreJoining ? 0.0 : parseFloat(rollingBalance.toFixed(1));
+      const credit = isPreJoining ? 0.0 : 2.0;
+      const totalUsed = isPreJoining ? 0.0 : parseFloat((leavesTaken + lateDeductions).toFixed(1));
+
+      // Check for manual calibration on this month
+      const calibratedMonth = balances[`${selectedYear}_${monthNum}`];
+
+      let closing;
+      if (isPreJoining) {
+        closing = 0.0;
+      } else if (calibratedMonth !== undefined) {
+        // User explicitly set this month's balance via long-press
+        closing = parseFloat(Number(calibratedMonth).toFixed(1));
+      } else {
+        closing = parseFloat((opening + credit - totalUsed).toFixed(1));
+      }
+
+      if (!isPreJoining) {
+        rollingBalance = closing;
+      }
+
+      let tag = undefined;
+      if (isPreJoining) {
+        tag = 'Pre-joining';
+      } else if (isJoiningMonth) {
+        tag = 'Joined';
+      }
+
+      return {
+        month: `${name} ${selectedYear}`,
+        monthName: name,
+        monthNum,
+        year: selectedYear,
+        current: isCurrent,
+        opening,
+        credit,
+        leavesTaken,
+        leaves: monthLeaves,
+        lateCount,
+        lateRecords: monthLates,
+        lateDeductions,
+        totalUsed,
+        days: closing,
+        status: closing < 0 ? 'deficit' : 'normal',
+        tag,
+        isPreJoining,
+      };
+    });
+  }, [selectedYear, leaveRequests, attendanceRecords, userJoinYear, userJoinMonth, balances, today]);
+
+  // Current selected month breakdown info
+  const selectedMonthInfo = useMemo(() => {
+    return (
+      monthlyBreakdown.find((m) => m.monthNum === selectedMonth) || {
+        opening: 0.0,
+        credit: 2.0,
+        leavesTaken: 0.0,
+        leaves: [],
+        lateCount: 0,
+        lateRecords: [],
+        lateDeductions: 0.0,
+        totalUsed: 0.0,
+        days: 2.0,
+        status: 'normal',
+        isPreJoining: false,
+      }
+    );
+  }, [monthlyBreakdown, selectedMonth]);
+
+  // Selected Month Net Balance with Carry Forward & Calibration
+  const monthOpeningBalance = selectedMonthInfo.opening;
+  const MONTHLY_BASE_QUOTA = selectedMonthInfo.credit;
+  const monthLeaves = selectedMonthInfo.leaves;
+  const monthLeavesTaken = selectedMonthInfo.leavesTaken;
+  const monthLateCount = selectedMonthInfo.lateCount;
+  const monthLateRecords = selectedMonthInfo.lateRecords;
+  const monthLateDeductions = selectedMonthInfo.lateDeductions;
+  const monthTotalDeductions = selectedMonthInfo.totalUsed;
+  const monthBalance = selectedMonthInfo.days;
+
+  const isMonthDeficit = monthBalance < 0;
+  const monthDeficitDays = isMonthDeficit ? Math.abs(monthBalance) : 0;
+
+  const lateStrikesInCycle = monthLateCount % 3;
+  const lateStrikesRemaining = lateStrikesInCycle === 0 ? 3 : 3 - lateStrikesInCycle;
+
+  // Yearly stats for backward compatibility & accurate prorated total
+  const yearlyStats = useMemo(() => {
+    let totalCredits = 24.0;
+    if (selectedYear < userJoinYear) {
+      totalCredits = 0.0;
+    } else if (selectedYear === userJoinYear) {
+      totalCredits = Math.max(0, (12 - userJoinMonth + 1) * 2.0);
+    }
+
+    const leavesUsed = leaveRequests
+      .filter((r) => {
+        if (r.year) return r.year === selectedYear;
+        if (!r.date) return false;
+        return new Date(r.date + 'T00:00:00').getFullYear() === selectedYear;
+      })
+      .reduce((acc, r) => acc + (Number(r.days) || 0), 0);
+
+    const balance = selectedMonthInfo?.days ?? 0.0;
+
+    return {
+      totalCredits,
+      leavesUsed,
+      balance,
+    };
+  }, [leaveRequests, selectedYear, userJoinYear, userJoinMonth, selectedMonthInfo]);
+
+  // Add leave
   const addLeave = async ({
     mode,
     startDate,
@@ -216,7 +624,7 @@ export function LeaveProvider({ children }) {
         session,
         reason,
         requestedDays,
-        year: currentYear,
+        year: selectedYear,
         saturdayRule,
       };
 
@@ -230,38 +638,28 @@ export function LeaveProvider({ children }) {
           ...prev,
           [res.updatedBalance.year]: res.updatedBalance.availableDays,
         }));
-      } else {
-        const newBal = Math.max(0, availableBalance - requestedDays);
-        setBalances((prev) => ({
-          ...prev,
-          [currentYear]: parseFloat(newBal.toFixed(1)),
-        }));
       }
 
-      fetchBalanceHistory(currentYear);
-
-      const balAfter = res.updatedBalance?.availableDays ?? (availableBalance - requestedDays);
       showToast(
-        'Leave Request Approved & Saved',
-        `Allocated ${requestedDays.toFixed(1)} day(s). New balance: ${balAfter.toFixed(1)} days.`
+        'Leave Approved',
+        `Allocated ${requestedDays.toFixed(1)} day(s) for ${newLeave.displayDate}.`
       );
       return true;
     } catch (error) {
-      showToast('Submission Failed', error.message || 'Could not save leave', 'error');
+      showToast('Error', error.message || 'Could not save leave', 'error');
       return false;
     } finally {
       setIsSyncing(false);
     }
   };
 
-  // DELETE LEAVE (Restores balance in MongoDB)
+  // Delete leave
   const deleteLeave = async (id) => {
     setIsSyncing(true);
     try {
       const res = await api.deleteLeave(id);
       const restored = res.restoredDays || 1.0;
 
-      // Remove from list
       setLeaveRequests((prev) => prev.filter((r) => (r.id || r._id) !== id));
 
       if (res.updatedBalance) {
@@ -269,30 +667,19 @@ export function LeaveProvider({ children }) {
           ...prev,
           [res.updatedBalance.year]: res.updatedBalance.availableDays,
         }));
-      } else {
-        const restoredBal = availableBalance + restored;
-        setBalances((prev) => ({
-          ...prev,
-          [currentYear]: parseFloat(restoredBal.toFixed(1)),
-        }));
       }
 
-      fetchBalanceHistory(currentYear);
-
-      showToast(
-        'Leave Deleted & Balance Restored',
-        `Recalculated: +${restored} day(s) restored back to balance.`
-      );
+      showToast('Deleted', `Restored +${restored} day(s).`);
       return true;
     } catch (error) {
-      showToast('Delete Failed', error.message || 'Could not delete leave', 'error');
+      showToast('Delete Failed', error.message, 'error');
       return false;
     } finally {
       setIsSyncing(false);
     }
   };
 
-  // UPDATE / EDIT LEAVE (Recalculates delta in MongoDB)
+  // Update leave
   const updateLeave = async (id, updateData) => {
     setIsSyncing(true);
     try {
@@ -303,63 +690,16 @@ export function LeaveProvider({ children }) {
         prev.map((r) => ((r.id || r._id) === id ? { ...r, ...updatedItem } : r))
       );
 
-      if (res.updatedBalance) {
-        setBalances((prev) => ({
-          ...prev,
-          [res.updatedBalance.year]: res.updatedBalance.availableDays,
-        }));
-      }
-
-      fetchBalanceHistory(currentYear);
-
-      showToast(
-        'Leave Updated & Recalculated',
-        `Changes saved successfully. Current balance: ${(
-          res.updatedBalance?.availableDays ?? availableBalance
-        ).toFixed(1)} days.`
-      );
+      showToast('Updated', 'Leave updated.');
       return true;
     } catch (error) {
-      showToast('Update Failed', error.message || 'Could not update leave', 'error');
+      showToast('Update Failed', error.message, 'error');
       return false;
     } finally {
       setIsSyncing(false);
     }
   };
 
-  // RESET / CALIBRATE BALANCE
-  const resetBalance = async (year, newBalance, reason) => {
-    setIsSyncing(true);
-    try {
-      const res = await api.adjustBalance({
-        year: year || currentYear,
-        newBalance,
-        reason: reason || 'Manual calibration via dashboard long-press',
-        changedBy: user?.name || 'User',
-      });
-
-      const updatedVal = res.data.newBalance;
-      setBalances((prev) => ({
-        ...prev,
-        [year || currentYear]: updatedVal,
-      }));
-
-      await fetchBalanceHistory(year || currentYear);
-
-      showToast(
-        'Balance Calibrated Successfully',
-        `Available days set to ${updatedVal.toFixed(1)} days. Recorded in History.`
-      );
-      return true;
-    } catch (error) {
-      showToast('Reset Failed', error.message || 'Could not reset balance', 'error');
-      return false;
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  // Auth: Login
   const login = async (email, password) => {
     try {
       const res = await api.login(email, password);
@@ -369,21 +709,17 @@ export function LeaveProvider({ children }) {
         setIsAuthenticated(true);
         localStorage.setItem('auth_logged_in', 'true');
         localStorage.setItem('auth_user', JSON.stringify(userData));
-
-        // Always navigate directly to dashboard overview on login
         setActiveTab('overview');
-
-        showToast('Welcome Back', 'Signed in successfully.');
+        showToast('Welcome', 'Signed in successfully.');
         return { success: true };
       }
       return { success: false, error: 'Sign in failed' };
     } catch (error) {
       showToast('Sign In Error', error.message || 'Invalid email or password', 'error');
-      return { success: false, error: error.message || 'Invalid email or password' };
+      return { success: false, error: error.message };
     }
   };
 
-  // Auth: Register User
   const registerUser = async (name, email, password) => {
     try {
       const res = await api.register(name, email, password);
@@ -393,52 +729,14 @@ export function LeaveProvider({ children }) {
         setIsAuthenticated(true);
         localStorage.setItem('auth_logged_in', 'true');
         localStorage.setItem('auth_user', JSON.stringify(userData));
-
-        // Open policy page immediately when user creates account for the first time
-        setActiveTab('rules');
-        showToast('Account Created', 'Welcome to Leave Manager! Please review the policy guidelines.');
+        setActiveTab('overview');
+        showToast('Account Created', 'Welcome to Leave Manager!');
         return { success: true };
       }
       return { success: false, error: 'Could not create account' };
     } catch (error) {
       showToast('Registration Error', error.message || 'Could not create account', 'error');
-      return { success: false, error: error.message || 'Could not create account' };
-    }
-  };
-
-  // Auth: Update User Profile Dynamically
-  const updateUserProfile = async (profileData) => {
-    setIsSyncing(true);
-    try {
-      const res = await api.updateProfile({ email: user?.email, ...profileData });
-      if (res.data) {
-        const updated = { ...user, ...res.data };
-        setUser(updated);
-        localStorage.setItem('auth_user', JSON.stringify(updated));
-        showToast('Profile Updated', 'Profile details have been updated successfully.');
-        return { success: true, data: updated };
-      }
-      return { success: false, error: 'Failed to update' };
-    } catch (error) {
-      showToast('Profile Update Error', error.message || 'Could not update profile', 'error');
       return { success: false, error: error.message };
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  // Auth: Acknowledge Rules
-  const acknowledgeLeaveRules = async () => {
-    try {
-      if (user?.email) {
-        await api.acknowledgeRules(user.email);
-      }
-      const updatedUser = { ...user, rulesAcknowledged: true };
-      setUser(updatedUser);
-      localStorage.setItem('auth_user', JSON.stringify(updatedUser));
-      showToast('Rules Acknowledged', 'You are ready to manage your leaves!');
-    } catch (err) {
-      console.warn('Rules ack failed:', err);
     }
   };
 
@@ -448,6 +746,26 @@ export function LeaveProvider({ children }) {
     localStorage.removeItem('auth_logged_in');
     localStorage.removeItem('auth_user');
     showToast('Signed Out', 'You have been signed out.');
+  };
+
+  const updateUserProfile = async (profileData) => {
+    setIsSyncing(true);
+    try {
+      const res = await api.updateProfile({ email: user?.email, ...profileData });
+      if (res.data) {
+        const updated = { ...user, ...res.data };
+        setUser(updated);
+        localStorage.setItem('auth_user', JSON.stringify(updated));
+        showToast('Profile Updated', 'Profile details updated successfully.');
+        return { success: true, data: updated };
+      }
+      return { success: false, error: 'Failed to update' };
+    } catch (error) {
+      showToast('Profile Error', error.message || 'Could not update profile', 'error');
+      return { success: false, error: error.message };
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   const updatePassword = async (oldPassword, newPassword) => {
@@ -460,58 +778,94 @@ export function LeaveProvider({ children }) {
     }
   };
 
-  const yearlyStats = useMemo(() => {
-    const totalCredits = defaultAnnualQuota;
-    const leavesUsed = leaveRequests
-      .filter((r) => {
-        if (r.year) return r.year === currentYear;
-        if (!r.date) return false;
-        return new Date(r.date + 'T00:00:00').getFullYear() === currentYear;
-      })
-      .reduce((acc, r) => acc + (Number(r.days) || 0), 0);
-    const balance = balances[currentYear] !== undefined
-      ? balances[currentYear]
-      : Math.max(0, totalCredits - leavesUsed);
-
-    return {
-      totalCredits,
-      leavesUsed,
-      balance: Math.max(0, balance),
-    };
-  }, [defaultAnnualQuota, leaveRequests, currentYear, balances]);
+  const selectedMonthName = `${MONTH_NAMES[selectedMonth - 1]} ${selectedYear}`;
+  const isCurrentMonth = today.getFullYear() === selectedYear && today.getMonth() + 1 === selectedMonth;
 
   const value = {
-    currentYear,
-    setCurrentYear,
+    selectedYear,
+    setSelectedYear,
+    selectedMonth,
+    setSelectedMonth,
+    selectedMonthName,
+    isCurrentMonth,
+    prevMonth,
+    nextMonth,
+    jumpToCurrentMonth,
+    currentYear: selectedYear,
     handleYearChange,
-    availableBalance,
-    defaultAnnualQuota,
-    userJoinMonth,
-    userJoinYear,
-    balances,
-    activeTab,
-    setActiveTab,
-    leaveRequests,
-    holidays,
+
+    // Carry-forward Month Quota & Balance
+    MONTHLY_BASE_QUOTA,
+    monthOpeningBalance,
+    monthLeaves,
+    monthLeavesTaken,
+    monthLateCount,
+    monthLateRecords,
+    monthLateDeductions,
+    monthTotalDeductions,
+    monthBalance,
+    isMonthDeficit,
+    monthDeficitDays,
+    availableBalance: monthBalance,
+
+    // History & Yearly stats
     monthlyBreakdown,
+    yearlyStats,
+    defaultAnnualQuota: 24.0,
+    userJoinYear,
+    userJoinMonth,
     balanceHistory,
     fetchBalanceHistory,
-    toast,
-    showToast,
-    closeToast,
+    resetBalance,
+
+    // Attendance
+    attendanceRecords: monthLateRecords,
+    allAttendanceRecords: attendanceRecords,
+    todayAttendance,
+    lateStrikesInCycle,
+    lateStrikesRemaining,
+    punchIn,
+    updateAttendanceRecord,
+    deleteAttendanceRecord,
+    fetchAttendance,
+
+    // Daily Work & Tasks
+    tasks,
+    taskDate,
+    setTaskDate,
+    taskFromDate,
+    setTaskFromDate,
+    taskToDate,
+    setTaskToDate,
+    fetchTasks,
+    addTask,
+    toggleTask,
+    updateTaskItem,
+    deleteTaskItem,
+
+    // Leaves & Holidays
+    leaveRequests,
+    holidays,
+    balances,
     addLeave,
     deleteLeave,
     updateLeave,
-    resetBalance,
-    yearlyStats,
+
+    // Auth & Navigation
+    activeTab,
+    setActiveTab,
     isAuthenticated,
     user,
     login,
     registerUser,
     logout,
-    updatePassword,
     updateUserProfile,
-    acknowledgeLeaveRules,
+    updatePassword,
+
+    // Feedback
+    toast,
+    showToast,
+    closeToast,
     isLoading,
     isSyncing,
     refreshData: loadInitialData,

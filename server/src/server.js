@@ -8,6 +8,8 @@ import leaveRoutes from './routes/leaveRoutes.js';
 import balanceRoutes from './routes/balanceRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import holidayRoutes from './routes/holidayRoutes.js';
+import attendanceRoutes from './routes/attendanceRoutes.js';
+import taskRoutes from './routes/taskRoutes.js';
 
 // Load environment variables
 dotenv.config();
@@ -43,6 +45,8 @@ app.use('/api/leaves', leaveRoutes);
 app.use('/api/balance', balanceRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/holidays', holidayRoutes);
+app.use('/api/attendance', attendanceRoutes);
+app.use('/api/tasks', taskRoutes);
 
 // 404 Handler
 app.use((req, res) => {

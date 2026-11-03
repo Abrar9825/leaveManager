@@ -1,27 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { useLeave } from '../context/LeaveContext';
+import { useLeave, MONTH_NAMES } from '../context/LeaveContext';
 import YearNavigator from './YearNavigator';
 
-export default function LeaveHistory() {
+export default function LeaveHistory({ isModal = false }) {
   const {
     monthlyBreakdown,
-    yearlyStats,
     currentYear,
     balanceHistory,
     fetchBalanceHistory,
-    showToast,
-    userJoinYear,
     userJoinMonth,
+    userJoinYear,
+    showToast,
   } = useLeave();
-
-  const monthShortNames = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-  ];
-  const startMonthName =
-    currentYear === userJoinYear && userJoinMonth && userJoinMonth > 1
-      ? monthShortNames[userJoinMonth - 1]
-      : 'Jan';
 
   // Active view: 'monthly' | 'tracking'
   const [activeView, setActiveView] = useState('monthly');
@@ -29,9 +19,12 @@ export default function LeaveHistory() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedAuditItem, setSelectedAuditItem] = useState(null);
 
+  // Month breakdown detail modal state
+  const [selectedMonthModal, setSelectedMonthModal] = useState(null);
+
   useEffect(() => {
     fetchBalanceHistory();
-  }, []);
+  }, [fetchBalanceHistory]);
 
   const handleRefreshHistory = async () => {
     setIsRefreshing(true);
@@ -41,11 +34,11 @@ export default function LeaveHistory() {
 
   const handleExportStatement = () => {
     if (activeView === 'monthly') {
-      const header = 'Month,Status,Balance (Days),Opening,Credit,Used\n';
+      const header = 'Month,Status,Carry From Last Month,Quota,Leaves Taken,Late Deductions,Closing Balance\n';
       const rows = monthlyBreakdown
         .map(
           (m) =>
-            `"${m.month}","${m.current ? 'Current' : m.tag || 'Standard'}","${m.days.toFixed(1)}","${m.opening.toFixed(1)}","+${m.credit.toFixed(1)}","-${m.used.toFixed(1)}"`
+            `"${m.month}","${m.isPreJoining ? 'Pre-joining' : m.status}","${m.opening > 0 ? '+' : ''}${m.opening.toFixed(1)}","+${m.credit.toFixed(1)}","-${m.leavesTaken.toFixed(1)}","-${m.lateDeductions.toFixed(1)}","${m.isPreJoining ? '0.0' : m.days.toFixed(1)}"`
         )
         .join('\n');
       const blob = new Blob([header + rows], { type: 'text/csv;charset=utf-8;' });
@@ -58,11 +51,11 @@ export default function LeaveHistory() {
       document.body.removeChild(link);
       showToast('Statement Exported', `Official leave ledger for ${currentYear} downloaded.`);
     } else {
-      const header = 'Date,Year,Action,Change,Old Balance,New Balance,Reason,Changed By\n';
+      const header = 'Date,Month/Year,Action,Change,Old Balance,New Balance,Reason,Changed By\n';
       const rows = balanceHistory
         .map(
           (h) =>
-            `"${new Date(h.createdAt || h.timestamp).toLocaleString()}","${h.year}","${h.changeType}","${h.change > 0 ? '+' : ''}${h.change}","${h.oldBalance}","${h.newBalance}","${h.reason}","${h.changedBy || user?.name || 'User'}"`
+            `"${new Date(h.createdAt || h.timestamp).toLocaleString()}","${h.monthName || h.year}","${h.changeType}","${h.change > 0 ? '+' : ''}${h.change}","${h.oldBalance}","${h.newBalance}","${h.reason}","${h.changedBy || 'User'}"`
         )
         .join('\n');
       const blob = new Blob([header + rows], { type: 'text/csv;charset=utf-8;' });
@@ -103,128 +96,98 @@ export default function LeaveHistory() {
       case 'manual_reset':
         return {
           label: 'Manual Calibration',
-          bg: 'bg-primary-fixed text-primary border-primary/20',
+          bg: 'bg-primary-fixed text-primary',
           icon: 'restart_alt',
         };
       case 'leave_deletion':
         return {
           label: 'Leave Restored',
-          bg: 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30',
+          bg: 'bg-emerald-100 text-emerald-800',
           icon: 'add_circle',
         };
       case 'leave_deduction':
         return {
           label: 'Leave Deduction',
-          bg: 'bg-amber-500/15 text-amber-700 border-amber-500/30',
+          bg: 'bg-amber-100 text-amber-800',
           icon: 'remove_circle',
         };
       case 'leave_edit':
         return {
           label: 'Leave Edit',
-          bg: 'bg-purple-500/15 text-purple-700 border-purple-500/30',
+          bg: 'bg-purple-100 text-purple-800',
           icon: 'edit_calendar',
         };
       default:
         return {
           label: 'Adjustment',
-          bg: 'bg-surface-container text-on-surface-variant border-surface-container',
+          bg: 'bg-surface-container text-on-surface-variant',
           icon: 'history',
         };
     }
   };
 
   return (
-    <div className="w-full max-w-[840px] mx-auto flex flex-col gap-6 pb-12 animate-in fade-in duration-200">
-      {/* Title Header */}
-      <div className="flex flex-col items-center text-center">
-        <h1 className="font-headline-lg text-2xl sm:text-3xl font-bold text-on-surface tracking-tight">
-          History & Audit Trail
-        </h1>
-        <p className="font-body-md text-sm text-on-surface-variant mt-1">
-          Monthly breakdown and live tracking of all balance resets and changes.
-        </p>
-      </div>
-
-      {/* Hero Yearly Summary Card (Obsidian Midnight) */}
-      <div className="relative w-full rounded-[22px] bg-inverse-surface text-on-primary p-5 sm:p-7 md:p-8 overflow-hidden shadow-hero-dark border border-white/10">
-        <div className="absolute -top-16 -right-16 w-80 h-80 rounded-full bg-primary/30 blur-3xl pointer-events-none ambient-glow"></div>
-        <div className="absolute top-1/2 -left-20 w-48 h-48 rounded-full bg-secondary-container/20 blur-2xl pointer-events-none"></div>
-
-        <div className="relative z-10 flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <span className="font-label-caps text-[11px] tracking-widest text-secondary-fixed uppercase font-semibold">
-              YEARLY LEAVE SUMMARY
-            </span>
-            <span className="text-xs text-secondary-fixed/80">Cycle: {startMonthName} – Dec {currentYear}</span>
-          </div>
-
-          <div className="grid grid-cols-3 gap-2.5 pt-2 border-t border-white/10 text-center">
-            {/* Total Credits */}
-            <div className="flex flex-col items-center justify-center p-3 rounded-xl bg-white/5 border border-white/5">
-              <span className="text-2xl sm:text-4xl font-bold tracking-tight text-white">
-                {yearlyStats.totalCredits.toFixed(0)}
-              </span>
-              <p className="font-label-caps text-[10px] sm:text-[11px] text-secondary-fixed/90 uppercase mt-1 font-semibold">
-                Total Credits
+    <div className={`w-full max-w-[680px] mx-auto flex flex-col gap-4 animate-fade-in px-1 ${isModal ? 'pb-4' : 'pb-16'}`}>
+      {/* Header Card */}
+      <div className="bg-surface-container-lowest p-3 sm:p-4 rounded-2xl border border-surface-container shadow-xs flex flex-col gap-3">
+        {/* Top Row: Title on Left (if not modal), CSV & Year Navigator */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          {!isModal && (
+            <div>
+              <h1 className="font-headline-sm text-base sm:text-lg font-bold text-on-surface">
+                History & Statements
+              </h1>
+              <p className="text-xs text-on-surface-variant">
+                Monthly balance ledger and audit tracking.
               </p>
             </div>
+          )}
 
-            {/* Leaves Used */}
-            <div className="flex flex-col items-center justify-center p-3 rounded-xl bg-white/5 border border-white/5">
-              <span className="text-2xl sm:text-4xl font-bold tracking-tight text-white">
-                {yearlyStats.leavesUsed.toFixed(0)}
-              </span>
-              <p className="font-label-caps text-[10px] sm:text-[11px] text-secondary-fixed/90 uppercase mt-1 font-semibold">
-                Leaves Used
-              </p>
-            </div>
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end ml-auto">
+            <YearNavigator />
 
-            {/* Balance */}
-            <div className="flex flex-col items-center justify-center p-3 rounded-xl bg-white/10 border border-white/10">
-              <span className="text-2xl sm:text-4xl font-bold tracking-tight text-secondary-fixed-dim">
-                {yearlyStats.balance.toFixed(0)}
-              </span>
-              <p className="font-label-caps text-[10px] sm:text-[11px] text-secondary-fixed uppercase mt-1 font-semibold">
-                Balance
-              </p>
-            </div>
+            <button
+              onClick={handleExportStatement}
+              type="button"
+              className="h-8 px-3 rounded-xl bg-surface-container-low hover:bg-surface-container text-primary font-bold text-xs flex items-center gap-1.5 border border-surface-container transition-all shrink-0"
+              title="Download CSV Statement"
+            >
+              <span className="material-symbols-outlined text-[16px]">download</span>
+              <span>CSV</span>
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Year Pill Selector */}
-      <YearNavigator />
-
-      {/* Main Dual-Tab Segmented Container */}
-      <div className="w-full rounded-[22px] bg-surface-container-lowest shadow-sm overflow-hidden p-5 sm:p-7 border border-surface-container/80">
+      {/* Main Dual-Tab Container */}
+      <div className="w-full rounded-[22px] bg-surface-container-lowest p-4 sm:p-5 border border-surface-container shadow-xs space-y-4">
         {/* Navigation Tabs Switcher */}
-        <div className="flex items-center justify-between pb-4 border-b border-surface-container gap-2 flex-wrap">
-          <div className="flex items-center p-1 bg-surface-container-low rounded-xl gap-1 border border-surface-container/60 w-full sm:w-auto">
+        <div className="flex items-center justify-between gap-2 pb-3 border-b border-surface-container flex-wrap">
+          <div className="flex items-center p-1 bg-surface-container-low rounded-xl border border-surface-container/60 w-full sm:w-auto">
             <button
               type="button"
               onClick={() => setActiveView('monthly')}
-              className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 py-1.5 sm:py-2 px-2.5 sm:px-3.5 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
+              className={`flex-1 sm:flex-initial py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
                 activeView === 'monthly'
-                  ? 'bg-surface-container-lowest text-primary shadow-xs border border-surface-container/80'
+                  ? 'bg-surface-container-lowest text-primary shadow-xs'
                   : 'text-on-surface-variant hover:text-on-surface'
               }`}
             >
-              <span className="material-symbols-outlined text-[16px] sm:text-[17px]">calendar_view_month</span>
+              <span className="material-symbols-outlined text-[16px]">calendar_view_month</span>
               <span>Monthly Breakdown</span>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveView('tracking')}
-              className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 py-1.5 sm:py-2 px-2.5 sm:px-3.5 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
+              className={`flex-1 sm:flex-initial py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
                 activeView === 'tracking'
-                  ? 'bg-surface-container-lowest text-primary shadow-xs border border-surface-container/80'
+                  ? 'bg-surface-container-lowest text-primary shadow-xs'
                   : 'text-on-surface-variant hover:text-on-surface'
               }`}
             >
-              <span className="material-symbols-outlined text-[16px] sm:text-[17px]">history</span>
-              <span className="hidden xs:inline">Balance Tracking History</span>
-              <span className="xs:hidden">History</span>
+              <span className="material-symbols-outlined text-[16px]">history</span>
+              <span>Audit Trail</span>
               {balanceHistory.length > 0 && (
                 <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-primary/10 text-primary font-bold">
                   {balanceHistory.length}
@@ -238,21 +201,20 @@ export default function LeaveHistory() {
               <select
                 value={trackingYearFilter}
                 onChange={(e) => setTrackingYearFilter(e.target.value)}
-                className="bg-surface-container-low border border-surface-container text-on-surface font-semibold rounded-lg px-2.5 py-1.5 outline-none focus:border-primary text-xs"
+                className="bg-surface-container-low border border-surface-container text-on-surface font-semibold rounded-lg px-2 py-1 text-xs outline-none"
               >
                 <option value="all">All Years</option>
                 <option value="2026">2026</option>
                 <option value="2025">2025</option>
-                <option value="2024">2024</option>
               </select>
 
               <button
                 type="button"
                 onClick={handleRefreshHistory}
-                title="Refresh audit history from MongoDB"
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:text-primary hover:bg-surface-container transition-colors"
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors"
+                title="Refresh history"
               >
-                <span className={`material-symbols-outlined text-[18px] ${isRefreshing ? 'animate-spin' : ''}`}>
+                <span className={`material-symbols-outlined text-[16px] ${isRefreshing ? 'animate-spin' : ''}`}>
                   refresh
                 </span>
               </button>
@@ -260,348 +222,360 @@ export default function LeaveHistory() {
           )}
         </div>
 
-        {/* TAB 1: Monthly Breakdown */}
+        {/* TAB 1: Monthly Breakdown (Clicking any month opens details popup with Carry-Forward!) */}
         {activeView === 'monthly' && (
-          <div className="pt-3">
-            <div className="flex items-center justify-between pb-3">
-              <div>
-                <h3 className="font-headline-sm text-base font-bold text-on-surface">
-                  Monthly Leave Accrual
-                </h3>
-                <p className="font-body-sm text-xs text-on-surface-variant">
-                  Monthly credit of 2 days is credited on the 1st of each month.
-                </p>
-              </div>
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-surface-container-low text-primary font-label-caps text-xs font-semibold border border-surface-container/70">
-                <span className="material-symbols-outlined text-[14px]">auto_awesome</span>
-                +2 / mo
-              </span>
-            </div>
+          <div className="space-y-2">
+            <p className="text-[11px] text-on-surface-variant font-medium px-1">
+              Tap any month to see detailed carry-forward and deduction calculations.
+            </p>
 
-            {/* List of Months */}
-            <div className="flex flex-col divide-y divide-surface-container">
-              {monthlyBreakdown.map((item) => {
-                const isDeficit = item.status === 'deficit';
+            {monthlyBreakdown.map((item) => {
+              const isDeficit = item.status === 'deficit' || item.days < 0;
+              const hasCarry = item.opening !== 0 && !item.isPreJoining;
+
+              return (
+                <div
+                  key={item.month}
+                  onClick={() => setSelectedMonthModal(item)}
+                  className={`p-3 rounded-xl border transition-all flex items-center justify-between gap-2.5 cursor-pointer select-none ${
+                    item.isPreJoining
+                      ? 'bg-surface-container-low/20 border-surface-container/40 opacity-70 hover:opacity-100 hover:bg-surface-container-low/40'
+                      : item.current
+                      ? 'bg-primary/5 border-primary/30 ring-1 ring-primary/20'
+                      : isDeficit
+                      ? 'bg-rose-500/10 border-rose-500/30'
+                      : 'bg-surface-container-low/50 border-surface-container/60 hover:bg-surface-container-low'
+                  }`}
+                  title="Click to view breakdown details"
+                >
+                  {/* Left: Month Name & Tags */}
+                  <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                    <span
+                      className={`text-xs sm:text-sm font-bold truncate ${
+                        item.isPreJoining
+                          ? 'text-on-surface-variant/70'
+                          : item.current
+                          ? 'text-primary'
+                          : 'text-on-surface'
+                      }`}
+                    >
+                      {item.month}
+                    </span>
+
+                    {item.isPreJoining && (
+                      <span className="px-1.5 py-0.2 rounded bg-surface-container text-on-surface-variant text-[9px] font-semibold shrink-0">
+                        Pre-joining
+                      </span>
+                    )}
+
+                    {item.tag === 'Joined' && (
+                      <span className="px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-800 text-[9px] font-bold shrink-0">
+                        Joined
+                      </span>
+                    )}
+
+                    {item.current && (
+                      <span className="px-1.5 py-0.2 rounded-full bg-primary text-white text-[9px] font-bold uppercase tracking-wider shrink-0">
+                        Current
+                      </span>
+                    )}
+
+                    {hasCarry && (
+                      <span
+                        className={`px-1.5 py-0.2 rounded font-mono text-[9px] font-bold shrink-0 ${
+                          item.opening < 0
+                            ? 'bg-rose-100 text-rose-700'
+                            : 'bg-emerald-100 text-emerald-800'
+                        }`}
+                      >
+                        {item.opening > 0 ? `+${item.opening}c` : `${item.opening}c`}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Right: Net Balance Badge & Arrow */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span
+                      className={`px-2.5 py-1 rounded-full text-xs font-bold font-mono shadow-2xs ${
+                        item.isPreJoining
+                          ? 'bg-surface-container-low text-on-surface-variant/60 border border-surface-container'
+                          : isDeficit
+                          ? 'bg-rose-500 text-white'
+                          : item.current
+                          ? 'bg-primary text-white'
+                          : 'bg-surface-container text-on-surface'
+                      }`}
+                    >
+                      {item.isPreJoining
+                        ? '0.0d'
+                        : isDeficit
+                        ? `-${Math.abs(item.days).toFixed(1)}d`
+                        : `${item.days.toFixed(1)}d`}
+                    </span>
+
+                    <span className="material-symbols-outlined text-[16px] text-on-surface-variant">
+                      chevron_right
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* TAB 2: Clean Audit Trail */}
+        {activeView === 'tracking' && (
+          <div className="space-y-2">
+            {filteredTrackingHistory.length === 0 ? (
+              <div className="py-8 text-center text-xs text-on-surface-variant font-medium">
+                No balance adjustments recorded yet.
+              </div>
+            ) : (
+              filteredTrackingHistory.map((item, idx) => {
+                const badge = getActionBadge(item.changeType);
+                const isPos = item.change > 0;
+
                 return (
                   <div
-                    key={item.month}
-                    className={`py-3 sm:py-3.5 flex flex-col gap-1 transition-colors ${
-                      isDeficit ? 'bg-error-container/15 -mx-3 px-3 rounded-xl' : ''
-                    }`}
+                    key={item.id || item._id || idx}
+                    onClick={() => setSelectedAuditItem(item)}
+                    className="p-3 rounded-xl border border-surface-container/70 bg-surface-container-low/50 hover:bg-surface-container-low transition-colors flex items-center justify-between gap-2.5 cursor-pointer"
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-sm font-bold text-on-surface ${item.current ? 'text-primary' : ''}`}>
-                          {item.month}
-                        </span>
-                        {item.current && (
-                          <span className="px-2 py-0.5 rounded-full bg-primary text-white font-label-caps text-[9px] uppercase font-bold">
-                            Current
-                          </span>
-                        )}
-                        {item.tag && (
-                          <span
-                            className={`px-1.5 py-0.5 rounded font-label-caps text-[9px] uppercase font-bold ${
-                              item.tag === 'Joined'
-                                ? 'bg-emerald-500/15 text-emerald-800 border border-emerald-500/30'
-                                : item.tag === 'Pre-joining'
-                                ? 'bg-surface-container text-on-surface-variant'
-                                : 'bg-error-container text-on-error-container'
-                            }`}
-                          >
-                            {item.tag}
-                          </span>
-                        )}
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${badge.bg}`}>
+                        <span className="material-symbols-outlined text-[16px]">{badge.icon}</span>
                       </div>
 
-                      {/* Badge */}
-                      {item.current ? (
-                        <span className="inline-flex items-center text-xs font-bold px-2.5 py-0.5 rounded-full bg-primary text-on-primary shadow-xs">
-                          {item.days.toFixed(1)} Days
-                        </span>
-                      ) : isDeficit ? (
-                        <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-error-container text-on-error-container">
-                          <span className="w-1.5 h-1.5 rounded-full bg-error"></span>
-                          {item.days.toFixed(1)} Day
-                        </span>
-                      ) : (
-                        <span
-                          className={`inline-flex items-center text-xs font-semibold px-2.5 py-0.5 rounded-full ${
-                            item.days > 0
-                              ? 'bg-primary-fixed text-primary'
-                              : 'bg-surface-container-high text-on-surface-variant font-medium'
-                          }`}
-                        >
-                          {item.days.toFixed(1)} Days
-                        </span>
-                      )}
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-xs font-bold text-on-surface">{badge.label}</span>
+                          {item.monthName && (
+                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-primary/10 text-primary font-bold">
+                              {item.monthName}
+                            </span>
+                          )}
+                          <span className="text-[10px] text-on-surface-variant truncate">
+                            {formatTimestamp(item.createdAt || item.timestamp)}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-on-surface-variant truncate mt-0.5">
+                          {item.reason || 'Balance change'}
+                        </p>
+                      </div>
                     </div>
 
-                    <div className="flex items-center justify-between text-xs text-on-surface-variant">
-                      <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
-                        <span>
-                          Opening:{' '}
-                          <strong className={item.opening < 0 ? 'text-error' : 'text-on-surface'}>
-                            {item.opening.toFixed(1)}
-                          </strong>
-                        </span>
-                        <span>
-                          Credit: <strong className="text-primary">+{item.credit.toFixed(1)}</strong>
-                        </span>
-                        <span>
-                          Used: <strong className="text-on-surface">-{item.used.toFixed(1)}</strong>
-                        </span>
-                      </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span
+                        className={`text-xs font-mono font-bold ${
+                          isPos ? 'text-emerald-600' : 'text-rose-600'
+                        }`}
+                      >
+                        {isPos ? `+${item.change}` : item.change}d
+                      </span>
                     </div>
                   </div>
                 );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* TAB 2: Balance Tracking History (Audit Trail) */}
-        {activeView === 'tracking' && (
-          <div className="pt-3 space-y-3">
-            <div className="flex items-center justify-between pb-1">
-              <div>
-                <h3 className="font-headline-sm text-base font-bold text-on-surface">
-                  Balance Audit History
-                </h3>
-                <p className="font-body-sm text-xs text-on-surface-variant">
-                  Detailed ledger of all balance calibrations, deductions, and restorations.
-                </p>
-              </div>
-            </div>
-
-            {filteredTrackingHistory.length === 0 ? (
-              <div className="py-10 text-center text-on-surface-variant text-sm">
-                <span className="material-symbols-outlined text-[32px] text-on-surface-variant/40 mb-1 block">
-                  history_toggle_off
-                </span>
-                No balance adjustments logged yet.
-              </div>
-            ) : (
-              <div className="flex flex-col divide-y divide-surface-container">
-                {filteredTrackingHistory.map((item, idx) => {
-                  const badge = getActionBadge(item.changeType);
-                  const changeVal = Number(item.change);
-                  const isPositive = changeVal > 0;
-                  const isNegative = changeVal < 0;
-
-                  return (
-                    <div
-                      key={item._id || item.id || idx}
-                      onClick={() => setSelectedAuditItem(item)}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          setSelectedAuditItem(item);
-                        }
-                      }}
-                      className="group flex items-center justify-between py-2.5 sm:py-3 hover:bg-surface-container-low -mx-2 sm:-mx-3 px-2 sm:px-3 rounded-xl transition-all duration-150 cursor-pointer select-none active:scale-[0.99] gap-2"
-                      title="Click to view full audit details"
-                    >
-                      <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
-                        <div className="w-8 h-8 rounded-lg bg-surface-container-lowest flex items-center justify-center text-primary border border-surface-container shrink-0">
-                          <span className="material-symbols-outlined text-[17px]">{badge.icon}</span>
-                        </div>
-
-                        <div className="flex flex-col min-w-0 pr-1">
-                          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                            <span className="text-xs sm:text-sm font-semibold text-on-surface truncate group-hover:text-primary transition-colors max-w-[130px] xs:max-w-[200px] sm:max-w-none">
-                              {item.reason}
-                            </span>
-                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border shrink-0 ${badge.bg}`}>
-                              {badge.label}
-                            </span>
-                          </div>
-                          <span className="text-[10px] sm:text-[11px] text-on-surface-variant truncate mt-0.5">
-                            {formatTimestamp(item.createdAt || item.timestamp)} • Year {item.year}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-1 sm:ml-2">
-                        <span
-                          className={`text-[11px] sm:text-xs font-bold tabular-nums px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full ${
-                            isPositive
-                              ? 'bg-emerald-500/10 text-emerald-700'
-                              : isNegative
-                              ? 'bg-amber-500/10 text-amber-800'
-                              : 'bg-surface-container text-on-surface'
-                          }`}
-                        >
-                          {isPositive ? `+${changeVal.toFixed(1)}` : `${changeVal.toFixed(1)}`}d
-                        </span>
-                        <span className="material-symbols-outlined text-[16px] text-on-surface-variant/40 group-hover:text-on-surface transition-colors hidden xs:inline-block">
-                          chevron_right
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              })
             )}
           </div>
         )}
-
-        {/* Footer info & Export */}
-        <div className="mt-5 pt-4 border-t border-surface-container flex flex-col gap-3">
-          <div className="flex items-center justify-between text-xs text-on-surface-variant">
-            <span className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#27C383]"></span>
-              All data persisted live in MongoDB
-            </span>
-          </div>
-
-          <button
-            onClick={handleExportStatement}
-            className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-surface-container-low hover:bg-surface-container text-on-surface transition-all font-label-md text-xs sm:text-sm font-semibold border border-surface-container"
-            type="button"
-          >
-            <span className="material-symbols-outlined text-[18px] text-on-surface-variant">
-              download
-            </span>
-            {activeView === 'monthly' ? 'Export Monthly Statement' : 'Export Tracking History'}
-          </button>
-        </div>
       </div>
 
-      {/* POPUP MODAL: BALANCE AUDIT DETAIL (Opens when user clicks any history row) */}
-      {selectedAuditItem && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-inverse-surface/60 backdrop-blur-sm transition-all animate-in fade-in duration-150"
-          onClick={() => setSelectedAuditItem(null)}
-        >
-          <div
-            className="w-full max-w-sm sm:max-w-md max-h-[88vh] flex flex-col bg-surface-container-lowest rounded-[20px] sm:rounded-[24px] shadow-2xl border border-surface-container relative overflow-hidden transition-all transform scale-100 animate-in zoom-in-95 duration-150"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between p-4 sm:p-5 pb-3 sm:pb-4 border-b border-surface-container shrink-0">
-              <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-primary-fixed flex items-center justify-center text-primary shadow-xs shrink-0">
-                  <span className="material-symbols-outlined text-[20px] sm:text-[22px]">
-                    {getActionBadge(selectedAuditItem.changeType).icon}
-                  </span>
-                </div>
-                <div className="min-w-0">
-                  <h3 className="font-headline-sm text-sm sm:text-base font-bold text-on-surface truncate">
-                    Audit Log Details
-                  </h3>
-                  <p className="text-[11px] sm:text-xs text-on-surface-variant truncate">
-                    Permanent audit record
-                  </p>
-                </div>
+      {/* MONTH BREAKDOWN DETAILS MODAL (WITH CARRY-FORWARD) */}
+      {selectedMonthModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in">
+          <div className="bg-surface-container-lowest w-full max-w-sm rounded-[22px] shadow-2xl border border-surface-container p-5 space-y-4">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-surface-container">
+              <div>
+                <h3 className="font-bold text-base text-on-surface">
+                  {selectedMonthModal.month}
+                </h3>
+                <span className="text-[11px] text-on-surface-variant">
+                  {selectedMonthModal.isPreJoining
+                    ? 'Pre-joining Period (0 Quota)'
+                    : 'Monthly Leave & Balance Ledger'}
+                </span>
               </div>
 
               <button
-                type="button"
-                onClick={() => setSelectedAuditItem(null)}
-                className="w-8 h-8 rounded-full flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors shrink-0 ml-2"
-                title="Close"
+                onClick={() => setSelectedMonthModal(null)}
+                className="w-7 h-7 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant"
               >
-                <span className="material-symbols-outlined text-[18px]">close</span>
+                <span className="material-symbols-outlined text-[16px]">close</span>
               </button>
             </div>
 
-            {/* Modal Body: Scrollable */}
-            <div className="p-4 sm:p-5 overflow-y-auto space-y-3 sm:space-y-3.5">
-              {/* Type Badge & Net Change */}
-              <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 p-2.5 sm:p-3 rounded-xl bg-surface-container-low border border-surface-container">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${
-                      getActionBadge(selectedAuditItem.changeType).bg
-                    }`}
-                  >
-                    {getActionBadge(selectedAuditItem.changeType).label}
-                  </span>
-                  <span className="text-[11px] sm:text-xs text-on-surface-variant font-medium truncate">
-                    Cycle Year {selectedAuditItem.year}
-                  </span>
-                </div>
-
-                <span
-                  className={`text-sm sm:text-base font-bold tabular-nums shrink-0 ${
-                    Number(selectedAuditItem.change) > 0
-                      ? 'text-emerald-600'
-                      : Number(selectedAuditItem.change) < 0
-                      ? 'text-amber-600'
-                      : 'text-on-surface'
-                  }`}
-                >
-                  {Number(selectedAuditItem.change) > 0 ? '+' : ''}
-                  {Number(selectedAuditItem.change).toFixed(1)} Days
-                </span>
-              </div>
-
-              {/* Balance Transition Metric */}
-              <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
-                <div className="p-2.5 sm:p-3 rounded-xl bg-surface-container-low border border-surface-container text-center">
-                  <span className="text-[9px] sm:text-[10px] uppercase font-bold text-on-surface-variant tracking-wider block mb-0.5">
-                    Previous Balance
-                  </span>
-                  <span className="text-sm sm:text-base font-bold text-on-surface tabular-nums">
-                    {selectedAuditItem.oldBalance !== undefined
-                      ? Number(selectedAuditItem.oldBalance).toFixed(1)
-                      : '—'}{' '}
-                    <span className="text-[11px] font-normal text-on-surface-variant">d</span>
-                  </span>
-                </div>
-
-                <div className="p-2.5 sm:p-3 rounded-xl bg-primary-fixed/20 border border-primary/20 text-center">
-                  <span className="text-[9px] sm:text-[10px] uppercase font-bold text-primary tracking-wider block mb-0.5">
-                    New Balance
-                  </span>
-                  <span className="text-sm sm:text-base font-bold text-primary tabular-nums">
-                    {selectedAuditItem.newBalance !== undefined
-                      ? Number(selectedAuditItem.newBalance).toFixed(1)
-                      : '—'}{' '}
-                    <span className="text-[11px] font-normal text-primary/80">d</span>
-                  </span>
-                </div>
-              </div>
-
-              {/* Reason / Note */}
-              <div className="p-2.5 sm:p-3 rounded-xl bg-surface-container-low border border-surface-container space-y-1">
-                <span className="text-[9px] sm:text-[10px] uppercase font-bold text-on-surface-variant tracking-wider block">
-                  Adjustment Reason
-                </span>
-                <p className="text-xs sm:text-sm font-semibold text-on-surface leading-snug break-words">
-                  {selectedAuditItem.reason || 'No description provided'}
+            {/* Pre-joining banner if applicable */}
+            {selectedMonthModal.isPreJoining ? (
+              <div className="p-3.5 rounded-xl bg-surface-container-low border border-surface-container text-xs text-on-surface-variant space-y-1.5">
+                <p className="font-semibold text-on-surface">Pre-joining Month</p>
+                <p className="text-[11px]">
+                  You joined the organization in {MONTH_NAMES[userJoinMonth - 1]} {userJoinYear}.
+                  Paid leave quota accrues at 2.0 days/month starting from your joining date.
                 </p>
               </div>
-
-              {/* Metadata: Recorded by & Timestamp */}
-              <div className="text-[11px] sm:text-xs text-on-surface-variant space-y-1.5 pt-1 border-t border-surface-container/60">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="shrink-0">Recorded By:</span>
-                  <strong className="text-on-surface truncate text-right">
-                    {selectedAuditItem.changedBy || user?.name || 'Authorized User'}
-                  </strong>
+            ) : (
+              /* Calculations Breakdown Stack */
+              <div className="space-y-2.5 text-xs">
+                {/* Carry forward from previous month */}
+                <div className="p-3 rounded-xl bg-surface-container-low flex items-center justify-between">
+                  <div>
+                    <span className="font-semibold text-on-surface block">
+                      Carry from Previous Month
+                    </span>
+                    <span className="text-[10px] text-on-surface-variant">
+                      {selectedMonthModal.opening > 0
+                        ? 'Surplus carried forward'
+                        : selectedMonthModal.opening < 0
+                        ? 'Deficit carried forward'
+                        : 'No previous carry balance'}
+                    </span>
+                  </div>
+                  <span
+                    className={`font-mono text-sm font-bold ${
+                      selectedMonthModal.opening > 0
+                        ? 'text-emerald-600'
+                        : selectedMonthModal.opening < 0
+                        ? 'text-rose-600'
+                        : 'text-on-surface-variant'
+                    }`}
+                  >
+                    {selectedMonthModal.opening > 0
+                      ? `+${selectedMonthModal.opening.toFixed(1)}`
+                      : selectedMonthModal.opening.toFixed(1)}{' '}
+                    Days
+                  </span>
                 </div>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="shrink-0">Timestamp:</span>
-                  <span className="text-on-surface font-medium truncate text-right">
-                    {formatTimestamp(selectedAuditItem.createdAt || selectedAuditItem.timestamp)}
+
+                {/* Base Quota */}
+                <div className="p-3 rounded-xl bg-surface-container-low flex items-center justify-between">
+                  <div>
+                    <span className="font-semibold text-on-surface block">
+                      Month Base Quota
+                    </span>
+                    <span className="text-[10px] text-on-surface-variant">Standard paid quota</span>
+                  </div>
+                  <span className="font-mono text-sm font-bold text-primary">
+                    +{selectedMonthModal.credit.toFixed(1)} Days
+                  </span>
+                </div>
+
+                {/* Leaves Taken */}
+                <div className="p-3 rounded-xl bg-surface-container-low flex items-center justify-between">
+                  <div>
+                    <span className="font-semibold text-on-surface block">
+                      Leaves Taken
+                    </span>
+                    <span className="text-[10px] text-on-surface-variant">
+                      {selectedMonthModal.leaves.length} approved request(s)
+                    </span>
+                  </div>
+                  <span className="font-mono text-sm font-bold text-amber-600">
+                    -{selectedMonthModal.leavesTaken.toFixed(1)} Days
+                  </span>
+                </div>
+
+                {/* Late Deductions */}
+                <div className="p-3 rounded-xl bg-surface-container-low flex items-center justify-between">
+                  <div>
+                    <span className="font-semibold text-on-surface block">
+                      Late Deductions
+                    </span>
+                    <span className="text-[10px] text-on-surface-variant">
+                      {selectedMonthModal.lateCount} late arrival(s) (3 lates = -0.5d)
+                    </span>
+                  </div>
+                  <span className="font-mono text-sm font-bold text-rose-600">
+                    -{selectedMonthModal.lateDeductions.toFixed(1)} Days
+                  </span>
+                </div>
+
+                {/* Net Closing Balance Card */}
+                <div
+                  className={`p-3.5 rounded-xl border flex items-center justify-between ${
+                    selectedMonthModal.days < 0
+                      ? 'bg-rose-50 border-rose-200 text-rose-900'
+                      : 'bg-primary/5 border-primary/20 text-on-surface'
+                  }`}
+                >
+                  <div>
+                    <span className="font-bold text-xs uppercase block tracking-wider font-label-caps">
+                      {selectedMonthModal.days < 0 ? 'Deficit Balance' : 'Net Closing Balance'}
+                    </span>
+                    <span className="text-[10px] text-on-surface-variant">
+                      Carries forward to next month
+                    </span>
+                  </div>
+                  <span
+                    className={`font-mono text-lg font-bold ${
+                      selectedMonthModal.days < 0 ? 'text-rose-600' : 'text-primary'
+                    }`}
+                  >
+                    {selectedMonthModal.days.toFixed(1)} Days
                   </span>
                 </div>
               </div>
+            )}
+
+            <button
+              onClick={() => setSelectedMonthModal(null)}
+              type="button"
+              className="w-full h-10 rounded-xl bg-surface-container-high hover:bg-surface-container text-xs font-bold text-on-surface transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Audit Detail Modal */}
+      {selectedAuditItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in">
+          <div className="bg-surface-container-lowest w-full max-w-sm rounded-[22px] shadow-2xl border border-surface-container p-5 space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-surface-container">
+              <h4 className="font-bold text-sm text-on-surface">Audit Details</h4>
+              <button
+                onClick={() => setSelectedAuditItem(null)}
+                className="w-7 h-7 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant"
+              >
+                <span className="material-symbols-outlined text-[16px]">close</span>
+              </button>
             </div>
 
-            {/* Modal Footer */}
-            <div className="p-3 sm:p-4 border-t border-surface-container shrink-0 bg-surface-container-lowest">
-              <button
-                type="button"
-                onClick={() => setSelectedAuditItem(null)}
-                className="w-full py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold text-on-surface bg-surface-container hover:bg-surface-container-high transition-colors text-center active:scale-[0.99]"
-              >
-                Close
-              </button>
+            <div className="space-y-2 text-xs">
+              <div className="flex justify-between py-1 border-b border-surface-container/60">
+                <span className="text-on-surface-variant">Month / Year</span>
+                <span className="font-bold text-primary">
+                  {selectedAuditItem.monthName || selectedAuditItem.year}
+                </span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-surface-container/60">
+                <span className="text-on-surface-variant">Action</span>
+                <span className="font-bold text-on-surface">{selectedAuditItem.changeType}</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-surface-container/60">
+                <span className="text-on-surface-variant">Adjustment</span>
+                <span className="font-bold text-primary">{selectedAuditItem.change} days</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-surface-container/60">
+                <span className="text-on-surface-variant">Old Balance</span>
+                <span className="font-semibold text-on-surface">{selectedAuditItem.oldBalance}</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-surface-container/60">
+                <span className="text-on-surface-variant">New Balance</span>
+                <span className="font-semibold text-on-surface">{selectedAuditItem.newBalance}</span>
+              </div>
+              <div className="py-1">
+                <span className="text-on-surface-variant block mb-1">Reason</span>
+                <p className="p-2 rounded-lg bg-surface-container-low text-on-surface text-[11px]">
+                  {selectedAuditItem.reason || 'None provided'}
+                </p>
+              </div>
+              <div className="flex justify-between py-1 border-t border-surface-container/60 text-[10px] text-on-surface-variant">
+                <span>By: {selectedAuditItem.changedBy || 'User'}</span>
+                <span>{formatTimestamp(selectedAuditItem.createdAt || selectedAuditItem.timestamp)}</span>
+              </div>
             </div>
           </div>
         </div>

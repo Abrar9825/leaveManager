@@ -47,10 +47,10 @@ export default function LeaveRulesPage({ onBackToProfile }) {
         </div>
 
         <h1 className="font-headline-lg text-2xl sm:text-3xl font-bold text-on-surface tracking-tight mt-1">
-          Leave Policy & System Rules
+          Attendance & Leave Policy Rules
         </h1>
         <p className="font-body-md text-xs sm:text-sm text-on-surface-variant">
-          Official guide to company leave terms, Saturday & Sunday sandwich rules, and balance calculations.
+          Official guide to check-in timings, late attendance deductions, monthly quota, and deficit tracking.
         </p>
 
         {/* First-time Registration Welcome Banner */}
@@ -60,16 +60,87 @@ export default function LeaveRulesPage({ onBackToProfile }) {
               <span className="material-symbols-outlined text-[20px]">verified_user</span>
             </div>
             <div>
-              <h3 className="text-sm font-bold text-on-surface">Welcome! First-Time Policy Review</h3>
+              <h3 className="text-sm font-bold text-on-surface">Welcome! Policy Review</h3>
               <p className="text-xs text-on-surface-variant mt-0.5 leading-relaxed">
-                As a new employee, please review the company leave policy and weekend sandwich guidelines below. Check the agreement box at the bottom and click continue to enter your dashboard.
+                Please review the daily check-in timings and monthly leave balance guidelines below. Check the agreement box at the bottom and click continue to enter your dashboard.
               </p>
             </div>
           </div>
         )}
       </div>
 
-      {/* RULE 1: FRIDAY LEAVE (SATURDAY ATTENDANCE) */}
+      {/* RULE: DAILY ATTENDANCE & 10:00 AM LATE MARK */}
+      <div className="w-full bg-surface-container-lowest rounded-2xl p-5 shadow-sm border border-surface-container/70 space-y-3">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-rose-100 flex items-center justify-center text-rose-600 shrink-0">
+            <span className="material-symbols-outlined text-[18px]">timer</span>
+          </div>
+          <div>
+            <h2 className="text-sm sm:text-base font-bold text-on-surface">
+              Daily Check-in & Late Mark (10:00 AM Cutoff)
+            </h2>
+            <p className="text-[11px] text-on-surface-variant">
+              Every 3 late arrivals in a month deduct <strong>0.5 day (half day)</strong> from your leave balance.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+          <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container space-y-1">
+            <span className="font-bold text-emerald-700 flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-[15px]">check_circle</span>
+              Arrival at or before 10:00 AM:
+            </span>
+            <p className="text-on-surface-variant leading-relaxed text-[11px]">
+              Marked as <strong>On Time</strong>. No penalty strikes or deductions applied.
+            </p>
+          </div>
+
+          <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container space-y-1">
+            <span className="font-bold text-rose-700 flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-[15px]">warning</span>
+              Arrival after 10:00 AM (Late):
+            </span>
+            <p className="text-on-surface-variant leading-relaxed text-[11px]">
+              Marked as <strong>Late</strong>. On every 3rd late in the month (3rd, 6th, etc.), <strong>0.5 day</strong> is automatically deducted from your monthly leave balance.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* RULE: STRICTLY MONTH-WISE 2.0 DAYS QUOTA & DEFICIT (NEGATIVE) */}
+      <div className="w-full bg-surface-container-lowest rounded-2xl p-5 shadow-sm border border-surface-container/70 space-y-3">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-primary-fixed flex items-center justify-center text-primary shrink-0">
+            <span className="material-symbols-outlined text-[18px]">calendar_month</span>
+          </div>
+          <div>
+            <h2 className="text-sm sm:text-base font-bold text-on-surface">
+              Month-Wise Leave Balance (2.0 Days Allowance / Month)
+            </h2>
+            <p className="text-[11px] text-on-surface-variant">
+              Leave balances operate strictly on a monthly cycle, not yearly.
+            </p>
+          </div>
+        </div>
+
+        <div className="p-3.5 rounded-xl bg-surface-container-low border border-surface-container space-y-2 text-xs">
+          <p className="text-on-surface font-semibold leading-relaxed">
+            Every month provides a fresh quota of <strong className="text-primary font-bold">2.0 Paid Days</strong>.
+          </p>
+
+          <div className="p-3 rounded-lg bg-surface-container-lowest border border-surface-container/70 space-y-1 text-[11px]">
+            <span className="font-bold text-on-surface block">
+              Negative Balance / Deficit Tracking:
+            </span>
+            <p className="text-on-surface-variant leading-relaxed">
+              If your leaves taken + late deductions exceed 2.0 days in a month, your balance clearly drops into negative (e.g. <strong>-0.5</strong> or <strong>-1.0 days</strong>). The negative deficit is prominently highlighted and accounted for as Loss of Pay / leave deficit.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* RULE: FRIDAY / MONDAY & SATURDAY POLICY */}
       <div className="w-full bg-surface-container-lowest rounded-2xl p-5 shadow-sm border border-surface-container/70 space-y-3">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-primary-fixed flex items-center justify-center text-primary shrink-0">
@@ -77,10 +148,10 @@ export default function LeaveRulesPage({ onBackToProfile }) {
           </div>
           <div>
             <h2 className="text-sm sm:text-base font-bold text-on-surface">
-              Rule 1: Friday Leave (Saturday Attendance Rule)
+              Weekend Policy (Friday / Monday Leaves)
             </h2>
             <p className="text-[11px] text-on-surface-variant">
-              When applying for Friday leave, the system asks: <strong>"Will you come tomorrow? (Saturday)"</strong>
+              Saturday attendance verification and sandwich policy.
             </p>
           </div>
         </div>
@@ -89,159 +160,22 @@ export default function LeaveRulesPage({ onBackToProfile }) {
           <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container space-y-1">
             <span className="font-bold text-emerald-700 flex items-center gap-1.5">
               <span className="material-symbols-outlined text-[15px]">check_circle</span>
-              If You Work on Saturday (Yes):
+              Saturday Working (Yes):
             </span>
             <p className="text-on-surface-variant leading-relaxed text-[11px]">
-              You will attend office on Saturday. Only <strong>1.0 Day</strong> will be deducted for your Friday leave.
+              Compensatory attendance confirmed. Only <strong>1.0 Day</strong> is deducted.
             </p>
           </div>
 
           <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container space-y-1">
             <span className="font-bold text-amber-800 flex items-center gap-1.5">
               <span className="material-symbols-outlined text-[15px]">warning</span>
-              If Saturday Also Off (No):
+              Saturday Not Working (No):
             </span>
             <p className="text-on-surface-variant leading-relaxed text-[11px]">
-              Under company sandwich policy, Saturday is also counted as leave. Total <strong>2.0 Days</strong> will be deducted (Friday + Saturday).
+              Saturday is counted under sandwich policy. Total <strong>2.0 Days</strong> deducted.
             </p>
           </div>
-        </div>
-      </div>
-
-      {/* RULE 2: MONDAY LEAVE (PRECEDING SATURDAY WORK) */}
-      <div className="w-full bg-surface-container-lowest rounded-2xl p-5 shadow-sm border border-surface-container/70 space-y-3">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-primary-fixed flex items-center justify-center text-primary shrink-0">
-            <span className="material-symbols-outlined text-[18px]">calendar_today</span>
-          </div>
-          <div>
-            <h2 className="text-sm sm:text-base font-bold text-on-surface">
-              Rule 2: Monday Leave (Saturday Verification Rule)
-            </h2>
-            <p className="text-[11px] text-on-surface-variant">
-              When applying for Monday leave, the system asks: <strong>"Did you work on Saturday?"</strong>
-            </p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
-          <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container space-y-1">
-            <span className="font-bold text-emerald-700 flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-[15px]">check_circle</span>
-              If You Worked on Saturday (Yes):
-            </span>
-            <p className="text-on-surface-variant leading-relaxed text-[11px]">
-              Saturday compensatory attendance is verified. Only <strong>1.0 Day</strong> will be deducted for your Monday leave.
-            </p>
-          </div>
-
-          <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container space-y-1">
-            <span className="font-bold text-amber-800 flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-[15px]">warning</span>
-              If You Did Not Work Saturday (No):
-            </span>
-            <p className="text-on-surface-variant leading-relaxed text-[11px]">
-              Saturday holiday is cancelled and deducted from your paid quota. Total <strong>2.0 Days</strong> will be deducted (Saturday + Monday).
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* RULE 3: CONTINUOUS LEAVES & SUNDAY SANDWICH RULE */}
-      <div className="w-full bg-surface-container-lowest rounded-2xl p-5 shadow-sm border border-surface-container/70 space-y-3">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-primary-fixed flex items-center justify-center text-primary shrink-0">
-            <span className="material-symbols-outlined text-[18px]">date_range</span>
-          </div>
-          <div>
-            <h2 className="text-sm sm:text-base font-bold text-on-surface">
-              Rule 3: Continuous Leaves & Sunday Sandwich Rule
-            </h2>
-            <p className="text-[11px] text-on-surface-variant">
-              When taking a leave spanning across Sunday (e.g. Friday to Monday, Thursday to Tuesday, etc.):
-            </p>
-          </div>
-        </div>
-
-        <div className="p-3.5 rounded-xl bg-surface-container-low border border-surface-container space-y-2 text-xs">
-          <p className="text-on-surface font-semibold leading-relaxed">
-            If Sunday falls between your leave start date and end date, Sunday is <strong className="text-primary font-bold">NOT exempt</strong> and is counted as a paid leave day.
-          </p>
-
-          <div className="p-3 rounded-lg bg-surface-container-lowest border border-surface-container/70 space-y-1 text-[11px]">
-            <span className="font-bold text-on-surface block">
-              Example (Friday to Monday Range Leave):
-            </span>
-            <p className="text-on-surface-variant">
-              If an employee takes leave from Friday to Monday and does not attend Saturday:
-              <br />
-              <strong className="text-primary font-bold">
-                Friday (1) + Saturday (1) + Sunday (1) + Monday (1) = 4.0 Days Total Deduction.
-              </strong>
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* RULE 4: AUTOMATIC BALANCE RECALCULATION (EDIT & DELETE) */}
-      <div className="w-full bg-surface-container-lowest rounded-2xl p-5 shadow-sm border border-surface-container/70 space-y-3">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-primary-fixed flex items-center justify-center text-primary shrink-0">
-            <span className="material-symbols-outlined text-[18px]">calculate</span>
-          </div>
-          <div>
-            <h2 className="text-sm sm:text-base font-bold text-on-surface">
-              Rule 4: Automatic Balance Recalculation (Edit & Delete)
-            </h2>
-            <p className="text-[11px] text-on-surface-variant">
-              Whenever any approved leave is modified or removed, your leave balance recalculates instantly in real time without HR delay.
-            </p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
-          <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container space-y-1">
-            <span className="font-bold text-emerald-700 flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-[15px]">delete</span>
-              Delete Leave:
-            </span>
-            <p className="text-on-surface-variant leading-relaxed text-[11px]">
-              If you delete a <strong>1.0 Day</strong> leave, system immediately adds <strong>+1.0 Day</strong> back to your available balance.
-            </p>
-          </div>
-
-          <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container space-y-1">
-            <span className="font-bold text-purple-700 flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-[15px]">edit</span>
-              Edit Leave:
-            </span>
-            <p className="text-on-surface-variant leading-relaxed text-[11px]">
-              If you change a Full Day (1.0) to Half Day (0.5), the difference of <strong>0.5 Day</strong> is automatically restored back.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* RULE 5: DASHBOARD BALANCE CALIBRATION (LONG-PRESS HOLD) */}
-      <div className="w-full bg-surface-container-lowest rounded-2xl p-5 shadow-sm border border-surface-container/70 space-y-3">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-primary-fixed flex items-center justify-center text-primary shrink-0">
-            <span className="material-symbols-outlined text-[18px]">touch_app</span>
-          </div>
-          <div>
-            <h2 className="text-sm sm:text-base font-bold text-on-surface">
-              Rule 5: Dashboard Balance Calibration (Long-Press Hold)
-            </h2>
-            <p className="text-[11px] text-on-surface-variant">
-              Long-press (hold for ~600ms) on the Available Days card on the Dashboard to adjust your balance.
-            </p>
-          </div>
-        </div>
-
-        <div className="p-3.5 rounded-xl bg-surface-container-low border border-surface-container space-y-2 text-xs">
-          <p className="text-on-surface leading-relaxed text-[11px]">
-            Use the simple <strong>+1</strong> and <strong>-1</strong> stepper buttons to calibrate days. Every change is permanently recorded in the <strong>Balance Tracking History</strong> audit log with the date, time, reason, and changer name.
-          </p>
         </div>
       </div>
 
@@ -255,7 +189,7 @@ export default function LeaveRulesPage({ onBackToProfile }) {
             className="mt-0.5 w-4 h-4 text-primary rounded accent-primary cursor-pointer shrink-0"
           />
           <span className="text-xs font-semibold text-on-surface leading-snug">
-            I have read, understood, and agree to follow all company leave policies and weekend rules.
+            I understand that 10:00 AM is the arrival cutoff (3 lates = 0.5 day deduction), and monthly leave quota is 2.0 days.
           </span>
         </label>
 

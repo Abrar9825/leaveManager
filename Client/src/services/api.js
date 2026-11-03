@@ -1,4 +1,5 @@
 const BASE_URL = '/api';
+
 /**
  * Generic fetch wrapper with JSON handling and clean error formatting
  */
@@ -34,7 +35,7 @@ async function request(endpoint, options = {}) {
   }
 }
 
-// Leaves API
+// Leaves, Attendance & Daily Work API
 export const api = {
   // Leaves
   getLeaves: (year) => {
@@ -61,15 +62,87 @@ export const api = {
       method: 'DELETE',
     }),
 
+  // Attendance & Late Check-in
+  punchIn: ({ userId, date, time, method = 'long_press', notes = '' } = {}) =>
+    request('/attendance/punch', {
+      method: 'POST',
+      body: JSON.stringify({ userId, date, time, method, notes }),
+    }),
+
+  updateAttendance: (id, { date, time, notes }) =>
+    request(`/attendance/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ date, time, notes }),
+    }),
+
+  getAttendance: (year, month, userId) => {
+    const params = new URLSearchParams();
+    if (year) params.append('year', year);
+    if (month) params.append('month', month);
+    if (userId) params.append('userId', userId);
+    const queryString = params.toString();
+    return request(`/attendance${queryString ? `?${queryString}` : ''}`);
+  },
+
+  getTodayAttendance: (userId) => {
+    const query = userId ? `?userId=${encodeURIComponent(userId)}` : '';
+    return request(`/attendance/today${query}`);
+  },
+
+  deleteAttendance: (id) =>
+    request(`/attendance/${id}`, {
+      method: 'DELETE',
+    }),
+
+  // Daily Work & Tasks
+  getTasks: (filterObj) => {
+    const params = new URLSearchParams();
+    if (typeof filterObj === 'string') {
+      params.append('date', filterObj);
+    } else if (filterObj && typeof filterObj === 'object') {
+      if (filterObj.date) params.append('date', filterObj.date);
+      if (filterObj.fromDate) params.append('fromDate', filterObj.fromDate);
+      if (filterObj.toDate) params.append('toDate', filterObj.toDate);
+      if (filterObj.startDate) params.append('startDate', filterObj.startDate);
+      if (filterObj.endDate) params.append('endDate', filterObj.endDate);
+      if (filterObj.month) params.append('month', filterObj.month);
+      if (filterObj.year) params.append('year', filterObj.year);
+    }
+    const qs = params.toString();
+    return request(`/tasks${qs ? `?${qs}` : ''}`);
+  },
+
+  createTask: ({ date, branch, description, status, userId }) =>
+    request('/tasks', {
+      method: 'POST',
+      body: JSON.stringify({ date, branch, description, status, userId }),
+    }),
+
+  updateTask: (id, updateData) =>
+    request(`/tasks/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updateData),
+    }),
+
+  toggleTaskStatus: (id) =>
+    request(`/tasks/${id}/toggle`, {
+      method: 'PATCH',
+    }),
+
+  deleteTask: (id) =>
+    request(`/tasks/${id}`, {
+      method: 'DELETE',
+    }),
+
   // Balances
   getBalances: () => request('/balance'),
 
   getBalanceByYear: (year) => request(`/balance/${year}`),
 
-  adjustBalance: ({ year, newBalance, reason, changedBy }) =>
+  adjustBalance: ({ year, month, newBalance, reason, changedBy }) =>
     request('/balance/adjust', {
       method: 'POST',
-      body: JSON.stringify({ year, newBalance, reason, changedBy }),
+      body: JSON.stringify({ year, month, newBalance, reason, changedBy }),
     }),
 
   getBalanceHistory: (year) => {
